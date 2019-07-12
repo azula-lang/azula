@@ -1,0 +1,13 @@
+name: Azula
+version: 0.1.0
+
+authors:
+  - OisinA <117397783@umail.ucc.ie>
+
+targets:
+  Azula:
+    main: src/Azula.cr
+
+crystal: 0.29.0
+
+license: MIT
