@@ -3,10 +3,10 @@ require "./azula/lexer/"
 
 # Azula is a strongly-typed compiled language, using an LLVM backend
 module Azula
-  VERSION = "0.1.0"
+  VERSION = "0.3.0"
   PROMPT = ">> "
 
-  puts "Azula V0.3"
+  puts "Azula " + VERSION
   print PROMPT
   input = gets
   while input && input != ""
