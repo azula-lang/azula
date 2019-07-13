@@ -45,6 +45,7 @@ Azula supports a number of built-in types, including:
 - bool
 - array
 - map
+- error
 
 Type must be declared when creating a variable, for examples:
 ```
@@ -215,4 +216,12 @@ array(int) list = [1, 2, 3, 4, 5];
 for(int x in list) {
     print(x); // prints 1, 2, 3, 4, 5
 }
+```
+
+### Error Handling
+
+```
+string s = get_s() catch error e {
+    print(e);
+};
 ```
