@@ -1,27 +1,35 @@
-# Azula
+## Azula
 
-TODO: Write a description here
+Azula is a strongly-typed compiled language, using an LLVM backend, with the following goals:
+- Static typing
+- Easy-to-read syntax
+- Efficient execution
 
-## Installation
+### Origin
 
-TODO: Write installation instructions here
+Azula started as a learning exercise through the [Writing a Interpreter in Go](https://interpreterbook.com) and [Writing a Compiler in Go](https://compilerbook.com) books by Thorsten Ball. As I reached the end of the compiler, rather than expanding the VM for Azula, I decided compiling to LLVM would make the language far more usable. Rather than attempting to change the version written in Go, I decided to rewrite Azula from scratch in Crystal.
 
-## Usage
+### Goals
 
-TODO: Write usage instructions here
+- Tokenizer
+- Lexer
+- Parser
+- Compiler
+- Compiler Optimization
+- Standard Library
+- Self-hosting compiler
 
-## Development
+### Example Code
 
-TODO: Write development instructions here
+```
+func fib(int x): int {
+    if(x == 0 or x == 1) {
+        return x;
+    }
+    return fib(x - 1) + fib(x - 2);
+}
 
-## Contributing
-
-1. Fork it (<https://github.com/your-github-user/Azula/fork>)
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create a new Pull Request
-
-## Contributors
-
-- [OisinA](https://github.com/your-github-user) - creator and maintainer
+func main(): void {
+    print(fib(15));
+}
+```
