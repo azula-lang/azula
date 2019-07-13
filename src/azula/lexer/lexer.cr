@@ -151,14 +151,6 @@ module Azula
             return @read_position >= @input.size ? Char::ZERO : @input[@read_position]
         end
 
-        def new_token(type : TokenType, literal : Char) : Token
-            return Token.new type, "#{literal}", @file, @current_line, @current_char_num
-        end
-
-        def new_token(type : TokenType, literal : String) : Token
-            return Token.new type, literal, @file, @current_line, @current_char_num
-        end
-
         def next_line
             while @current_char != '\n' || @current_char != Char::ZERO
                 self.read_char
