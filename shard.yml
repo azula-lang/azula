@@ -6,7 +6,7 @@ authors:
 
 targets:
   Azula:
-    main: src/Azula.cr
+    main: src/azula.cr
 
 crystal: 0.29.0
 

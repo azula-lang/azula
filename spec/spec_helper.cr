@@ -1,2 +1,2 @@
 require "spec"
-require "../src/Azula"
+require "../src/azula/lexer"

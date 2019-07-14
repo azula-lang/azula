@@ -14,6 +14,8 @@ module Azula
         COLON
         # Used to indicate end of a line
         SEMICOLON
+        # Used for floats and accessing structs
+        DOT
         # Used for variable/function names
         IDENTIFIER
         # Used to initialise a function
@@ -35,10 +37,13 @@ module Azula
         TRUE
         # False
         FALSE
+        # Null
+        NULL
 
         PLUS # +
         MINUS # -
         ASTERISK # *
+        EXPONENT # **
         SLASH # /
         MODULO # %
 
@@ -95,6 +100,9 @@ module Azula
 
         getter type
         getter literal
+        getter file
+        getter linenumber
+        getter charnumber
 
     end
 
@@ -115,6 +123,7 @@ module Azula
 
         "true" => TokenType::TRUE,
         "false" => TokenType::FALSE,
+        "null" => TokenType::NULL,
         "or" => TokenType::OR,
         "and" => TokenType::AND,
 

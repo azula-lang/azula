@@ -26,10 +26,12 @@ module Azula
             end
             if @current_char == '\n'
                 @current_line += 1
+                @current_char_num = 0
+            else
+                @current_char_num += 1
             end
             @position = @read_position
             @read_position += 1
-            @current_char_num += 1
         end
 
         def next_token : Token
@@ -48,8 +50,9 @@ module Azula
                     ch = @current_char
                     self.read_char
                     token_type, literal = TokenType::EQ, "#{ch}#{@current_char}"
+                else
+                    token_type, literal = TokenType::ASSIGN, @current_char
                 end
-                token_type, literal = TokenType::ASSIGN, @current_char
             when ':'
                 token_type, literal = TokenType::COLON, @current_char
             when ';'
@@ -62,35 +65,46 @@ module Azula
                     ch = @current_char
                     self.read_char
                     token_type, literal = TokenType::NOT_EQ, "#{ch}#{@current_char}"
+                else
+                    token_type, literal = TokenType::NOT, @current_char
                 end
-                token_type, literal = TokenType::NOT, @current_char
             when '+'
                 token_type, literal = TokenType::PLUS, @current_char
             when '-'
                 token_type, literal = TokenType::MINUS, @current_char
             when '*'
-                token_type, literal = TokenType::ASTERISK, @current_char
+                if self.peek_char == '*'
+                    ch = @current_char
+                    self.read_char
+                    token_type, literal = TokenType::EXPONENT, "#{ch}#{@current_char}"
+                else
+                    token_type, literal = TokenType::ASTERISK, @current_char
+                end
             when '%'
                 token_type, literal = TokenType::MODULO, @current_char
             when '/'
                 if self.peek_char == '/'
                     self.next_line
+                    return self.next_token
+                else
+                    token_type, literal = TokenType::SLASH, @current_char
                 end
-                token_type, literal = TokenType::SLASH, @current_char
             when '<'
                 if self.peek_char == '='
                     ch = @current_char
                     self.read_char
                     token_type, literal = TokenType::LT_EQ, "#{ch}#{@current_char}"
+                else
+                    token_type, literal = TokenType::LT, @current_char
                 end
-                token_type, literal = TokenType::LT, @current_char
             when '>'
                 if self.peek_char == '='
                     ch = @current_char
                     self.read_char
                     token_type, literal = TokenType::GT_EQ, "#{ch}#{@current_char}"
+                else
+                    token_type, literal = TokenType::GT, @current_char
                 end
-                token_type, literal = TokenType::GT, @current_char
             when '('
                 token_type, literal = TokenType::LBRACKET, @current_char
             when ')'
@@ -105,6 +119,8 @@ module Azula
                 token_type, literal = TokenType::RSQUARE, @current_char
             when ','
                 token_type, literal = TokenType::COMMA, @current_char
+            when '.'
+                token_type, literal = TokenType::DOT, @current_char
             when Char::ZERO
                 token_type, literal = TokenType::EOF, @current_char
             else
@@ -152,10 +168,14 @@ module Azula
         end
 
         def next_line
-            while @current_char != '\n' || @current_char != Char::ZERO
+            self.read_char
+            i = 0
+            while @current_char != '\n' || @current_char != Char::ZERO || @current_char != '\r'
+                if @current_char == '\n' || @current_char == Char::ZERO
+                    break
+                end
                 self.read_char
             end
-            @current_line += 1
         end
 
         def read_string : String
