@@ -32,6 +32,8 @@ module Azula
         AS
         # Used to create a struct
         STRUCT
+        # Used to declare a macro
+        MACRO
 
         # True
         TRUE
@@ -77,8 +79,8 @@ module Azula
         # Default statement in switch
         DEFAULT
 
-        # For loop
-        FOR
+        # While loop
+        WHILE
 
         LBRACKET # (
         RBRACKET # )
@@ -116,6 +118,8 @@ module Azula
 
         "func" => TokenType::FUNCTION,
         "return" => TokenType::RETURN,
+
+        "macro" => TokenType::MACRO,
         
         "as" => TokenType::AS,
 
@@ -134,7 +138,7 @@ module Azula
         "switch" => TokenType::SWITCH,
         "default" => TokenType::DEFAULT,
 
-        "for" => TokenType::FOR,
+        "while" => TokenType::WHILE,
     }
     
 end

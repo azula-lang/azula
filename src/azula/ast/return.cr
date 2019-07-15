@@ -21,11 +21,14 @@ module Azula
                 @values.each do |val|
                     s += "#{val.to_string}, "
                 end
+                if @values.size > 0
+                    s = s[0, s.size-2]
+                end
                 return s
             end
 
             getter token
-            getter value
+            getter values
 
         end
     end

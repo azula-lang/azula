@@ -1,17 +1,16 @@
 require "./ast"
 require "../token"
-require "./block"
 
 module Azula
     module AST
 
-        class For < Statement
+        class StructAccess < Expression
 
             @token : Token
-            @iterator : Expression
-            @body : Block
+            @struct_exp : Expression
+            @field : Expression
 
-            def initialize(@token, @iterator, @body)
+            def initialize(@token, @struct_exp, @field)   
             end
 
             def token_literal : String
@@ -19,12 +18,12 @@ module Azula
             end
 
             def to_string : String
-                return "#{self.token_literal}(#{@iterator.to_string}) {#{@body.to_string}}"
+                return "(#{struct_exp.to_string}.#{field.to_string})"
             end
 
             getter token
-            getter iterator
-            getter body
+            getter struct_exp
+            getter field
 
         end
     end

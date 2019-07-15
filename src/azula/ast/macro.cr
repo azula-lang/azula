@@ -7,15 +7,14 @@ require "../types"
 module Azula
     module AST
         # Function represents a callable function
-        class Function < Statement
+        class Macro < Statement
 
             @token : Token
-            @function_name : Identifier
-            @parameters : Array(TypedIdentifier)
-            @return_types : Array(Types::Type | String)
+            @macro_name : Identifier
+            @parameters : Array(Identifier)
             @body : Block
 
-            def initialize(@token, @function_name, @parameters, @return_types, @body)
+            def initialize(@token, @macro_name, @parameters, @body)
             end
 
             def token_literal : String
@@ -23,23 +22,17 @@ module Azula
             end
 
             def to_string : String
-                s = "#{self.token_literal} #{@function_name.to_string}("
+                s = "#{self.token_literal} #{@macro_name.to_string}("
                 @parameters.each do |param|
                     s += param.to_string + ","
                 end
-                s += ") : ("
-                @return_types.each do |rt|
-                    s += "#{rt.to_s.downcase}, "
-                end
-                s = s[0, s.size-2]
                 s += ") {\n#{@body.to_string}}"
                 return s
             end
 
             getter token
-            getter function_name
+            getter macro_name
             getter parameters
-            getter return_types
             getter body
 
         end

@@ -38,6 +38,9 @@ and
 /
 **
 %
+macro add(x, y) {
+    return {{x}}, {{y}};
+}
 "
     file = "repl"
 
@@ -155,6 +158,28 @@ and
         Azula::Token.new(Azula::TokenType::SLASH, "/", file, 33, 1),
         Azula::Token.new(Azula::TokenType::EXPONENT, "**", file, 34, 1),
         Azula::Token.new(Azula::TokenType::MODULO, "%", file, 35, 1),
+
+        Azula::Token.new(Azula::TokenType::MACRO, "macro", file, 36, 1),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "add", file, 36, 7),
+        Azula::Token.new(Azula::TokenType::LBRACKET, "(", file, 36, 10),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "x", file, 36, 11),
+        Azula::Token.new(Azula::TokenType::COMMA, ",", file, 36, 12),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "y", file, 36, 14),
+        Azula::Token.new(Azula::TokenType::RBRACKET, ")", file, 36, 15),
+        Azula::Token.new(Azula::TokenType::LBRACE, "{", file, 36, 17),
+        Azula::Token.new(Azula::TokenType::RETURN, "return", file, 37, 5),
+        Azula::Token.new(Azula::TokenType::LBRACE, "{", file, 37, 12),
+        Azula::Token.new(Azula::TokenType::LBRACE, "{", file, 37, 13),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "x", file, 37, 14),
+        Azula::Token.new(Azula::TokenType::RBRACE, "}", file, 37, 15),
+        Azula::Token.new(Azula::TokenType::RBRACE, "}", file, 37, 16),
+        Azula::Token.new(Azula::TokenType::COMMA, ",", file, 37, 17),
+        Azula::Token.new(Azula::TokenType::LBRACE, "{", file, 37, 19),
+        Azula::Token.new(Azula::TokenType::LBRACE, "{", file, 37, 20),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "y", file, 37, 21),
+        Azula::Token.new(Azula::TokenType::RBRACE, "}", file, 37, 22),
+        Azula::Token.new(Azula::TokenType::RBRACE, "}", file, 37, 23),
+        Azula::Token.new(Azula::TokenType::SEMICOLON, ";", file, 37, 24),
     ]
 
     it "correctly lexes input and returns tokens" do

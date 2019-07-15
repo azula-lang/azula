@@ -22,6 +22,8 @@ module Azula
                 return output
             end
 
+            getter statements
+
         end
     end
 end

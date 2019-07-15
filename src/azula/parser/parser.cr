@@ -23,19 +23,32 @@ macro nil_return(var)
     end
 end
 
+macro type_or_literal
+    type = Types::Type.parse? @current_token.literal
+    if type.nil?
+        types << @current_token.literal
+    else
+        types << type
+    end
+end
+
 module Azula
 
     enum OperatorPrecedence
         LOWEST,
+        COMPARISON,
         EQUALS,
         LESS_GREATER,
         SUM,
         PRODUCT,
         PREFIX,
-        CALL
+        CALL,
+        ACCESS,
     end
 
     Precedences = {
+        TokenType::OR => OperatorPrecedence::COMPARISON,
+        TokenType::AND => OperatorPrecedence::COMPARISON,
         TokenType::EQ => OperatorPrecedence::EQUALS,
         TokenType::NOT_EQ => OperatorPrecedence::EQUALS,
         TokenType::LT => OperatorPrecedence::LESS_GREATER,
@@ -49,6 +62,8 @@ module Azula
         TokenType::EXPONENT => OperatorPrecedence::PRODUCT,
         TokenType::MODULO => OperatorPrecedence::PRODUCT,
         TokenType::LBRACKET => OperatorPrecedence::CALL,
+        TokenType::LBRACE => OperatorPrecedence::CALL,
+        TokenType::DOT => OperatorPrecedence::ACCESS,
     }
 
     class Parser
@@ -74,6 +89,8 @@ module Azula
             register_prefix STRING, parse_string_literal
             register_prefix TRUE, parse_boolean_literal
             register_prefix FALSE, parse_boolean_literal
+            register_prefix LBRACKET, parse_grouped_expression
+            register_prefix IDENTIFIER, parse_identifier
 
             register_infix PLUS, parse_infix_expression
             register_infix MINUS, parse_infix_expression
@@ -87,6 +104,11 @@ module Azula
             register_infix LT_EQ, parse_infix_expression
             register_infix GT, parse_infix_expression
             register_infix GT_EQ, parse_infix_expression
+            register_infix OR, parse_infix_expression
+            register_infix AND, parse_infix_expression
+            register_infix LBRACKET, parse_function_call_expression
+            register_infix LBRACE, parse_struct_initialising
+            register_infix DOT, parse_struct_access
         end
 
         def next_token
@@ -116,9 +138,22 @@ module Azula
                 return self.parse_return_statement
             when TokenType::FUNCTION
                 return self.parse_function_statement
+            when TokenType::STRUCT
+                return self.parse_struct
+            when TokenType::COLON
+                self.next_token
+                return self.parse_assign_statement
+            when TokenType::IF
+                return self.parse_if_statement true
+            when TokenType::WHILE
+                return self.parse_while_loop
             end
-            self.add_error "non-statement found"
-            return
+            case @peek_token.type
+            when TokenType::COMMA
+                return self.parse_assign_statement
+            else
+                return self.parse_expression_statement
+            end
         end
 
         def parse_block_statement : AST::Block?
@@ -140,6 +175,11 @@ module Azula
                 self.next_token
             end
 
+            if @current_token.type != TokenType::RBRACE
+                self.add_error "expected {, got EOF"
+                return
+            end
+
             return AST::Block.new tok, stmts
         end
 
@@ -152,7 +192,7 @@ module Azula
             return false
         end
 
-        def parse_expression(precedence : OperatorPrecedence = OperatorPrecedence::LOWEST) : AST::Expression?
+        def parse_expression(precedence : OperatorPrecedence = OperatorPrecedence::LOWEST, close : TokenType = TokenType::SEMICOLON) : AST::Expression?
             prefix = @prefix_funcs.fetch @current_token.type, nil
             if prefix.nil?
                 self.add_error "no prefix function for #{@current_token.type}"
@@ -161,13 +201,12 @@ module Azula
 
             left = prefix.call
 
-            while @peek_token.type != TokenType::SEMICOLON && precedence < self.token_precedence(@peek_token.type)
+            while @peek_token.type != close && precedence < self.token_precedence(@peek_token.type)
                 infix = @infix_funcs.fetch @peek_token.type, nil
-                if infix.nil?
-                    return left
-                end
+                nil_return infix
 
                 self.next_token
+                nil_return left
                 left = infix.call left.not_nil!
             end
 
@@ -175,27 +214,39 @@ module Azula
         end
 
         def parse_assign_statement : AST::Assign?
+            t = @current_token
+            idents = [] of (AST::TypedIdentifier | AST::Identifier)
             ident = parse_typed_identifier
-            nil_return ident
+            if ident.nil?
+                ident = AST::Identifier.new @current_token, @current_token.literal
+            end
+
+            idents << ident
+
+            while @peek_token.type == TokenType::COMMA
+                self.next_token
+                self.next_token
+                ident = parse_typed_identifier
+                if ident.nil?
+                    return
+                end
+
+                idents << ident
+            end
 
             expect_peek_return ASSIGN
 
-            self.next_token
+            values = self.parse_expression_list TokenType::SEMICOLON
+            nil_return values
 
-            value = self.parse_expression
-            nil_return value
-
-            expect_peek_return SEMICOLON
-
-            return AST::Assign.new ident.token, ident, value.not_nil!
+            return AST::Assign.new t, idents, values.not_nil!
         end
 
         def parse_typed_identifier : AST::TypedIdentifier?
             assign_token = @current_token
             type = Types::Type.parse? @current_token.literal
             if type.nil?
-                self.add_error "'#{@current_token.literal}' not a valid type"
-                return
+                type = @current_token.literal
             end
 
             expect_peek_return IDENTIFIER
@@ -280,6 +331,10 @@ module Azula
             return exps
         end
 
+        def parse_identifier : AST::Identifier?
+            return AST::Identifier.new @current_token, @current_token.literal
+        end
+
         def parse_function_statement : AST::Function?
             tok = @current_token
             self.next_token
@@ -336,33 +391,143 @@ module Azula
             types = [] of (Types::Type | String)
             if @current_token.type == TokenType::LBRACKET
                 self.next_token
-                type = Types::Type.parse? @current_token.literal
-                if type.nil?
-                    self.add_error "'#{@current_token.literal}' not a valid type"
-                    return
-                end
-                types << type
+                type_or_literal
                 while @peek_token.type == TokenType::COMMA
                     self.next_token
                     self.next_token
-                    type = Types::Type.parse? @current_token.literal
-                    if type.nil?
-                        self.add_error "'#{@current_token.literal}' not a valid type"
-                        return
-                    end
-                    types << type
+                    type_or_literal
                 end
 
                 expect_peek_return RBRACKET
             else
-                type = Types::Type.parse? @current_token.literal
-                if type.nil?
-                    self.add_error "'#{@current_token.literal}' not a valid type"
-                    return
-                end
-                types << type
+                type_or_literal
             end
             return types
+        end
+
+        def parse_grouped_expression : AST::Expression?
+            self.next_token
+            exp = self.parse_expression
+            expect_peek_return RBRACKET
+
+            return exp
+        end
+
+        def parse_function_call_expression(function : AST::Expression) AST::Expression?
+            function = function.as?(AST::Identifier)
+            nil_return function
+            tok = @current_token
+            args = self.parse_expression_list TokenType::RBRACKET
+            nil_return args
+
+            return AST::FunctionCall.new tok, function.as(AST::Identifier), args
+        end
+
+        def parse_expression_statement : AST::ExpressionStatement?
+            tok = @current_token
+            exp = self.parse_expression
+            nil_return exp
+            expect_peek_return SEMICOLON
+
+            return AST::ExpressionStatement.new tok, exp.not_nil!
+        end
+
+        def parse_struct : AST::Struct?
+            tok = @current_token
+            self.next_token
+            name = AST::Identifier.new @current_token, @current_token.literal
+
+            fields = [] of AST::TypedIdentifier
+            expect_peek_return LBRACE
+
+            while @peek_token.type != TokenType::RBRACE
+                self.next_token
+                exp = self.parse_typed_identifier
+                nil_return exp
+                fields << exp.not_nil!
+                if @peek_token.type != TokenType::COMMA
+                    break
+                end
+                self.next_token
+            end
+
+            expect_peek_return RBRACE
+
+            self.next_token
+
+            return AST::Struct.new tok, name, fields
+        end
+
+        def parse_struct_initialising(struct_ident : AST::Expression) : AST::Expression?
+            struct_ident = struct_ident.as?(AST::Identifier)
+            nil_return struct_ident
+            tok = @current_token
+            args = self.parse_expression_list TokenType::RBRACE
+            nil_return args
+
+            return AST::StructInitialise.new tok, struct_ident, args
+        end
+
+        def parse_if_statement(top_level : Bool) : AST::If?
+            tok = @current_token
+            expect_peek_return LBRACKET
+            self.next_token
+            exp = self.parse_expression OperatorPrecedence::LOWEST, TokenType::RBRACKET
+            if exp.nil?
+                self.add_error "invalid condition"
+            end
+            nil_return exp
+            expect_peek_return RBRACKET
+            expect_peek_return LBRACE
+            cond = self.parse_block_statement
+            nil_return cond
+
+            if !top_level
+                return AST::If.new tok, exp.not_nil!, cond.not_nil!, [] of AST::If, nil
+            end
+
+            alts = [] of AST::If
+
+            while @peek_token.type == TokenType::ELSEIF
+                self.next_token
+                alt = self.parse_if_statement false
+                nil_return alt
+                alts << alt
+            end
+
+            alternative : AST::Block?
+
+            if @peek_token.type == TokenType::ELSE
+                self.next_token
+                expect_peek_return LBRACE
+                alternative = self.parse_block_statement
+                nil_return alternative
+            end
+
+            return AST::If.new tok, exp.not_nil!, cond.not_nil!, alts, alternative
+        end
+
+        def parse_while_loop : AST::While?
+            tok = @current_token
+            expect_peek_return LBRACKET
+            self.next_token
+            exp = self.parse_expression OperatorPrecedence::LOWEST, TokenType::RBRACKET
+            nil_return exp
+
+            expect_peek_return RBRACKET
+            expect_peek_return LBRACE
+            body = self.parse_block_statement
+            nil_return body
+
+            return AST::While.new tok, exp, body
+        end
+
+        def parse_struct_access(s : AST::Expression) : AST::StructAccess
+            tok = @current_token
+            self.next_token
+            field = AST::Identifier.new @current_token, @current_token.literal
+
+            return AST::StructAccess.new tok, s, field
         end
 
         def token_precedence(type : TokenType) OperatorPrecedence

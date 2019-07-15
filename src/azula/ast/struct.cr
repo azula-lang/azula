@@ -31,5 +31,34 @@ module Azula
             getter fields
 
         end
+
+        class StructInitialise < Expression
+
+            @token : Token
+            @struct_name : Identifier
+            @values : Array(Expression)
+
+            def initialize(@token, @struct_name, @values)
+            end
+
+            def token_literal : String
+                return @token.literal
+            end
+
+            def to_string : String
+                s = "#{@struct_name.to_string} {\n"
+                @values.each do |val|
+                    s += "#{val.to_string}, "
+                end
+                s = s[0, s.size - 2]
+                s += "\n}"
+                return s
+            end
+
+            getter token
+            getter struct_name
+            getter values
+
+        end
     end
 end

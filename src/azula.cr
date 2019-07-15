@@ -1,5 +1,6 @@
 require "./azula/lexer/"
 require "./azula/parser/"
+require "./azula/types/"
 
 # Azula is a strongly-typed compiled language, using an LLVM backend
 module Azula
@@ -16,10 +17,17 @@ while input && input != ""
   p = Azula::Parser.new l
   smt = p.parse_program
 
-  if p.errors.empty?
-    puts smt.to_string
-  else
+  if !p.errors.empty?
     p.errors.each do |error|
+      puts error
+    end
+  end
+
+  t = Azula::Types::Typechecker.new
+  puts t.check smt
+
+  if !t.errors.empty?
+    t.errors.each do |error|
       puts error
     end
   end

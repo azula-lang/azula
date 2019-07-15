@@ -19,7 +19,7 @@ module Azula
             end
 
             def to_string : String
-                return "#{@left.to_string} #{@operator} #{@right.to_string}"
+                return "(#{@left.to_string} #{@operator} #{@right.to_string})"
             end
 
             getter token

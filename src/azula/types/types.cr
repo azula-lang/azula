@@ -6,6 +6,7 @@ module Azula
             FLOAT
             STRING
             BOOL
+            VOID
             ERROR
         end
 
@@ -19,6 +20,8 @@ module Azula
                 return Type::STRING
             when "bool"
                 return Type::BOOL
+            when "void"
+                return Type::VOID
             when "error"
                 return Type::ERROR
             end
