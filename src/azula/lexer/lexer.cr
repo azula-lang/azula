@@ -170,10 +170,7 @@ module Azula
         def next_line
             self.read_char
             i = 0
-            while @current_char != '\n' || @current_char != Char::ZERO || @current_char != '\r'
-                if @current_char == '\n' || @current_char == Char::ZERO
-                    break
-                end
+            while @current_char != '\n' && @current_char != Char::ZERO && @current_char != '\r'
                 self.read_char
             end
         end
@@ -181,7 +178,7 @@ module Azula
         def read_string : String
             self.read_char
             position = @read_position - 1
-            while @current_char != '"'
+            while @current_char != '"' && @current_char != Char::ZERO
                 self.read_char
             end
             return @input[position...@read_position-1]

@@ -19,6 +19,8 @@ module Azula
             
             @variables : Hash(String, (Type | String))
             @structs : Hash(String, Hash(String, (Type | String)))
+            @function_returns : Hash(String, Array(Type | String))
+            @function_args : Hash(String, Array(Type | String))
             @errors : Array(String)
 
             getter errors
@@ -26,7 +28,16 @@ module Azula
             def initialize
                 @variables = {} of String=>(Type | String)
                 @structs = {} of String=>Hash(String, (Type | String))
+                @function_returns = {} of String=>Array(Type | String)
+                @function_args = {} of String=>Array(Type | String)
                 @errors = [] of String
+
+                v = [] of (Type | String)
+                v << Type::VOID
+                @function_returns["print"] = v
+                a = [] of (Type | String)
+                a << Type::STRING
+                @function_args["print"] = a
             end
 
             def check(node : AST::Node) Array(Type | String)?
@@ -39,7 +50,7 @@ module Azula
                         if val.size == 0 || val[0] == Type::VOID
                             next
                         end
-                        #return val
+                        return val
                     end
                     return [Type::VOID]
                 when .is_a?(AST::Block)
@@ -70,7 +81,7 @@ module Azula
                         fields[f.ident] = fi[0]
                     end
                     @structs[node.struct_name.ident] = fields
-                    return [node.struct_name.ident]
+                    return [Type::VOID]
                 when .is_a?(AST::StructInitialise)
                     convert_and_check_nil StructInitialise
                     name = node.struct_name.ident
@@ -152,6 +163,77 @@ module Azula
                         vals << t[0]
                     end
                     return vals
+                when .is_a?(AST::Function)
+                    convert_and_check_nil Function
+
+                    old_vars = @variables
+                    params = [] of (Type | String)
+                    node.parameters.each do |param|
+                        type = self.check param
+                        return_if_nil type
+                        if !self.is_valid_type type[0]
+                            self.add_error "undefined struct #{type[0]}", node.token
+                            return
+                        end
+                        params << type[0]
+                        @variables[param.ident] = type[0]
+                    end
+                    @function_args[node.function_name.ident] = params
+
+                    body_return = self.check node.body
+                    return_if_nil body_return
+
+                    if body_return.size != node.return_types.size
+                        self.add_error "incorrect number of return values, got #{body_return.size}, want #{node.return_types.size}", node.token
+                        return
+                    end
+
+                    body_return.size.times do |i|
+                        if body_return[i] != node.return_types[i]
+                            self.add_error "cannot return #{body_return[i]}, requires #{node.return_types[i]}", node.token
+                            return
+                        end
+                    end
+
+                    @function_returns[node.function_name.ident] = node.return_types
+
+                    @variables = old_vars
+                    return [Type::VOID]
+                when .is_a?(AST::FunctionCall)
+                    convert_and_check_nil FunctionCall
+                    name = node.function_name.ident
+                    str = @function_returns.fetch name, nil
+                    if str.nil?
+                        self.add_error "undefined function #{name}", node.token
+                        return
+                    end
+
+                    args = [] of (Type | String)
+                    node.arguments.each do |arg|
+                        t = self.check arg
+                        return_if_nil t
+                        args << t[0]
+                    end
+
+                    arg_types = @function_args.fetch name, nil
+                    if arg_types.nil?
+                        self.add_error "undefined function #{name}", node.token
+                        return
+                    end
+
+                    if args.size != arg_types.size
+                        self.add_error "incorrect number of arguments, got #{args.size}, want #{arg_types.size}", node.token
+                        return
+                    end
+
+                    args.size.times do |i|
+                        if args[i] != arg_types[i]
+                            self.add_error "cannot assign #{args[i]} to argument of type #{arg_types[i]}", node.token
+                            return
+                        end
+                    end
+
+                    return str
                 else
                     return [Type::VOID]
                 end
@@ -159,6 +241,15 @@ module Azula
 
             def add_error(s : String, token : Token)
                 @errors << "#{s} (file #{token.file}, line #{token.linenumber}, char #{token.charnumber})"
+            end
+
+            def is_valid_type(s : (String | Type))
+                t = s.as?(Type)
+                if t.nil?
+                    g = @structs.fetch s, nil
+                    return !g.nil?
+                end
+                return true
             end
 
         end
