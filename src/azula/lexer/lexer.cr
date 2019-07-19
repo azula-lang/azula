@@ -13,6 +13,8 @@ module Azula
         @current_line : Int32 = 0
         @current_char_num : Int32 = 0
 
+        setter file
+
         def initialize(@input : String)
             self.read_char
         end

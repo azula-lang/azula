@@ -1,0 +1,7 @@
+func add(int num) {
+    return num + 120;
+}
+
+func main(): void {
+    
+}

@@ -134,6 +134,10 @@ module Azula
             case @current_token.type
             when TokenType::TYPE
                 return self.parse_assign_statement
+            when TokenType::IDENTIFIER
+                if @peek_token.type == TokenType::ASSIGN
+                    return self.parse_assign_statement
+                end
             when TokenType::RETURN
                 return self.parse_return_statement
             when TokenType::FUNCTION
@@ -216,7 +220,12 @@ module Azula
         def parse_assign_statement : AST::Assign?
             t = @current_token
             idents = [] of (AST::TypedIdentifier | AST::Identifier)
-            ident = parse_typed_identifier
+            type = Types::Type.parse? @current_token.literal
+            if !type.nil?
+                ident = parse_typed_identifier
+            else
+                ident = parse_identifier
+            end
             if ident.nil?
                 ident = AST::Identifier.new @current_token, @current_token.literal
             end
@@ -226,7 +235,12 @@ module Azula
             while @peek_token.type == TokenType::COMMA
                 self.next_token
                 self.next_token
-                ident = parse_typed_identifier
+                type = Types::Type.parse? @current_token.literal
+                if !type.nil?
+                    ident = parse_typed_identifier
+                else
+                    ident = parse_identifier
+                end
                 if ident.nil?
                     return
                 end

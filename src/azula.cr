@@ -12,35 +12,33 @@ PROMPT = ">> "
 
 puts "Azula " + VERSION
 
-input = "none"
+#print PROMPT
+content = File.read "test.azl"
+l = Azula::Lexer.new content
+l.file = "test.azl"
+p = Azula::Parser.new l
+smt = p.parse_program
 
-while input && input != ""
-  print PROMPT
-  input = gets
-  if input.nil?
-    next
+if !p.errors.empty?
+  p.errors.each do |error|
+    puts error
   end
-  l = Azula::Lexer.new input
-  p = Azula::Parser.new l
-  smt = p.parse_program
-
-  if !p.errors.empty?
-    p.errors.each do |error|
-      puts error
-    end
-  end
-
-  t = Azula::Types::Typechecker.new
-  puts t.check smt
-
-  if !t.errors.empty?
-    t.errors.each do |error|
-      puts error
-    end
-    next
-  end
-
-  c = Azula::Compiler.new smt
-  # c.compile
-  c.write_to_file "test.ll"
 end
+
+# t = Azula::Types::Typechecker.new
+# puts t.check smt
+
+# if !t.errors.empty?
+#   t.errors.each do |error|
+#     puts error
+#   end
+#   next
+# end
+
+c = Azula::Compiler.new smt
+c.compile
+c.write_to_file "test.ll"
+
+puts "Compiled >> test.ll"
+
+# c.compiler.run_function c.main_module.functions["main"], c.context
