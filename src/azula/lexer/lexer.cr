@@ -1,7 +1,7 @@
 require "../token/*"
 
 module Azula
-    
+
     class Lexer
 
         @input : String

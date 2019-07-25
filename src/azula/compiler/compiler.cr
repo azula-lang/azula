@@ -13,6 +13,7 @@ module Azula
         @main_module : LLVM::Module
         @builder : LLVM::Builder
         @printfunc : LLVM::Function
+        @putsfunc : LLVM::Function
 
         @types : Hash(Types::Type, LLVM::Type)
 
@@ -32,7 +33,8 @@ module Azula
             @context = LLVM::Context.new
             @main_module = @context.new_module("main_module")
             @builder = @context.new_builder
-            @printfunc = @main_module.functions.add("puts", [@context.void_pointer], @context.int32, true)
+            @printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
+            @putsfunc = @main_module.functions.add("puts", [@context.void_pointer], @context.int32, true)
             # mainfunc = @module.functions.add("main", [] of LLVM::Type, @context.void, true) do |func|
             #     entry = func.basic_blocks.append "entry" do | builder |
             #         @builder = builder
@@ -53,10 +55,13 @@ module Azula
             @types = {
                 Types::Type::VOID => @context.void,
                 Types::Type::INT => @context.int32,
+                Types::Type::BOOL => @context.int1,
+                Types::Type::FLOAT => @context.float
                 #Types::Type::STRING => @context.int8.array(),
             }
             @builtin_funcs = {
                 "print" => @printfunc,
+                "puts" => @putsfunc,
                 #"to_string" => tostring,
             }
             @vars = {} of String=>LLVM::Value
@@ -139,6 +144,9 @@ module Azula
             when .is_a?(Azula::AST::IntegerLiteral)
                 convert_and_check_nil IntegerLiteral
                 return @context.int32.const_int node.value
+            when .is_a?(Azula::AST::FloatLiteral)
+                convert_and_check_nil FloatLiteral
+                return @context.float.const_float node.value
             when .is_a?(Azula::AST::StringLiteral)
                 convert_and_check_nil StringLiteral
                 return @builder.global_string_pointer(node.value)
@@ -175,10 +183,22 @@ module Azula
                     return @builder.icmp(LLVM::IntPredicate::EQ, left, right)
                 when "<"
                     return @builder.icmp(LLVM::IntPredicate::SLT, left, right)
+                when "<="
+                    return @builder.icmp(LLVM::IntPredicate::SLE, left, right)
+                when ">"
+                    return @builder.icmp(LLVM::IntPredicate::SGT, left, right)
+                when ">="
+                    return @builder.icmp(LLVM::IntPredicate::SGE, left, right)
                 when "%"
-                    div = @builder.sdiv(left, right)
-                    quotient = @builder.mul(right, div)
-                    return @builder.sub(div, quotient)
+                    return @builder.srem(left, right)
+                when "/"
+                    return @builder.sdiv(left, right)
+                when "or"
+                    return @builder.or(left, right)
+                when "and"
+                    return @builder.and(left, right)
+                else
+                    puts "unknown operand"
                 end
             when .is_a?(Azula::AST::If)
                 convert_and_check_nil If
@@ -196,7 +216,9 @@ module Azula
                     old = @builder
                     @builder = builder
                     self.compile node.consequence
-                    @builder.br after_block
+                    if !@has_return
+                        @builder.br after_block
+                    end
                     @builder = old
                 end
 
@@ -205,7 +227,9 @@ module Azula
                     else_func = @current_func.not_nil!.basic_blocks.append "else" do | builder |
                         @builder = builder
                         self.compile node.alternative.not_nil!
-                        builder.br after_block
+                        if !@has_return
+                            builder.br after_block
+                        end
                     end
                     old_builder.cond condition.not_nil!.to_unsafe, if_block, else_func
                     @builder = old
@@ -239,7 +263,7 @@ module Azula
                     old = @builder
                     @builder = builder
                     self.compile node.body
-                    builder.br loop_cond
+                    @builder.br loop_cond
                     @builder = old
                 end
 

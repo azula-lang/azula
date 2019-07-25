@@ -70,7 +70,7 @@ module Azula
         class FloatLiteral < Expression
 
             @token : Token
-            @value : Float64
+            @value : Float32
 
             def initialize(@token, @value)
             end

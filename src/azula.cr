@@ -32,7 +32,6 @@ end
 #   t.errors.each do |error|
 #     puts error
 #   end
-#   next
 # end
 
 c = Azula::Compiler.new smt

@@ -278,7 +278,7 @@ module Azula
                 next_token
                 next_token
                 second = @current_token
-                val = "#{first.literal}.#{second.literal}".to_f
+                val = "#{first.literal}.#{second.literal}".to_f32
                 if !val.nil?
                     return AST::FloatLiteral.new first, val
                 end
