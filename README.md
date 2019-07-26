@@ -5,7 +5,7 @@ Azula is a strongly-typed compiled language, using an LLVM backend, with the fol
 - Easy-to-read syntax
 - Efficient execution
 
-(Documentation)[https://azula-lang.github.io/azula/#/]
+[Documentation](https://azula-lang.github.io/azula/#/)
 
 ### Origin
 
