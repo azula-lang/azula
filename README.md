@@ -11,13 +11,24 @@ Azula started as a learning exercise through the [Writing a Interpreter in Go](h
 
 ### Goals
 
-- Tokenizer
-- Lexer
-- Parser
+- ~~Tokenizer~~
+- ~~Lexer~~
+- ~~Parser~~
 - Compiler
+- Write documentation in code
 - Compiler Optimization
 - Standard Library
 - Self-hosting compiler
+
+## Running
+```
+crystal run src/azula.cr -- FILENAME
+```
+
+or if built
+```
+azula FILENAME
+```
 
 ### Example Code
 

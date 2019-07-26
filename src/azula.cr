@@ -5,17 +5,22 @@ require "./azula/compiler/"
 
 # Azula is a strongly-typed compiled language, using an LLVM backend
 module Azula
-
 end
+
 VERSION = "0.3.0"
 PROMPT = ">> "
 
 puts "Azula " + VERSION
 
 #print PROMPT
-content = File.read "test.azl"
+if ARGV.size != 1
+  puts "Incorrect number of arguments."
+  exit
+end
+file = ARGV[0]
+content = File.read file
 l = Azula::Lexer.new content
-l.file = "test.azl"
+l.file = file
 p = Azula::Parser.new l
 smt = p.parse_program
 
