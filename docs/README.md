@@ -217,11 +217,3 @@ for(int x in list) {
     print(x); // prints 1, 2, 3, 4, 5
 }
 ```
-
-### Error Handling
-
-```
-string s = get_s() catch error e {
-    print(e);
-};
-```
