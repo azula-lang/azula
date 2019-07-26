@@ -1,4 +1,13 @@
+struct Person {
+    int age,
+    bool alive,
+};
+
+func new_person(int age, bool alive): Person {
+    return Person{3, true};
+}
+
 func main(): void {
-    float my_float = 10.2321;
-    print("%f %c%c", x, 10, 13);
+    :Person p = new_person(5, true);
+    printf("Age: %5d Alive: %5d", p);
 }

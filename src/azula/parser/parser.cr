@@ -221,7 +221,7 @@ module Azula
             t = @current_token
             idents = [] of (AST::TypedIdentifier | AST::Identifier)
             type = Types::Type.parse? @current_token.literal
-            if !type.nil?
+            if @peek_token.type == TokenType::IDENTIFIER
                 ident = parse_typed_identifier
             else
                 ident = parse_identifier
@@ -236,7 +236,7 @@ module Azula
                 self.next_token
                 self.next_token
                 type = Types::Type.parse? @current_token.literal
-                if !type.nil?
+                if @peek_token.type == TokenType::IDENTIFIER
                     ident = parse_typed_identifier
                 else
                     ident = parse_identifier

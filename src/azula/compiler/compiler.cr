@@ -56,7 +56,7 @@ module Azula
                 Types::Type::VOID => @context.void,
                 Types::Type::INT => @context.int32,
                 Types::Type::BOOL => @context.int1,
-                Types::Type::FLOAT => @context.float
+                Types::Type::FLOAT => @context.double
                 #Types::Type::STRING => @context.int8.array(),
             }
             @builtin_funcs = {
@@ -65,6 +65,7 @@ module Azula
                 #"to_string" => tostring,
             }
             @vars = {} of String=>LLVM::Value
+            @structs = {} of String=>LLVM::Type
             LLVM.init_x86
             @compiler = LLVM::JITCompiler.new @main_module
         end
@@ -129,7 +130,14 @@ module Azula
                 val = self.compile node.values[0]
                 ident = node.idents[0].as?(Azula::AST::TypedIdentifier)
                 if !ident.nil?
-                    ptr = @builder.alloca @types[ident.type], ident.ident
+                    type = @types.fetch ident.type, nil
+                    if type.nil?
+                        type = @structs.fetch ident.type, nil
+                        if type.nil?
+                            return
+                        end
+                    end
+                    ptr = @builder.alloca type, ident.ident
                     @vars[ident.ident] = ptr
                     @builder.store val.not_nil!.to_unsafe, ptr
                 else
@@ -146,7 +154,7 @@ module Azula
                 return @context.int32.const_int node.value
             when .is_a?(Azula::AST::FloatLiteral)
                 convert_and_check_nil FloatLiteral
-                return @context.float.const_float node.value
+                return @context.double.const_double node.value.to_f64
             when .is_a?(Azula::AST::StringLiteral)
                 convert_and_check_nil StringLiteral
                 return @builder.global_string_pointer(node.value)
@@ -274,6 +282,32 @@ module Azula
                 old_builder.br loop_cond
 
                 return
+            when .is_a?(Azula::AST::Struct)
+                convert_and_check_nil Struct
+                vars = [] of LLVM::Type
+                node.fields.each do |field|
+                    type = @types.fetch field.type, nil
+                    if !type.nil?
+                        vars << type
+                    end
+                end
+                @structs[node.struct_name.ident] = @context.struct(vars, node.struct_name.ident)
+                return
+            when .is_a?(Azula::AST::StructInitialise)
+                convert_and_check_nil StructInitialise
+                struc = @structs.fetch node.struct_name.ident, nil
+                if struc.nil?
+                    puts "unknown struct"
+                    return
+                end
+                vals = [] of LLVM::Value
+                node.values.each do |val|
+                    value = self.compile val
+                    if !value.nil?
+                        vals << value
+                    end
+                end
+                return @context.const_struct(vals)
             end
         end
 
@@ -283,11 +317,21 @@ module Azula
             function.parameters.each do | param |
                 a = @types.fetch param.type, nil
                 if a.nil?
-                    next
+                    a = @structs.fetch param.type, nil
+                    if a.nil?
+                        next
+                    end
                 end
                 args << a
             end
-            @main_module.functions.add(function.function_name.ident, args, @types[function.return_types[0]]) do |func|
+            type = @types.fetch function.return_types[0], nil
+            if type.nil?
+                type = @structs.fetch function.return_types[0], nil
+                if type.nil?
+                    return
+                end
+            end
+            @main_module.functions.add(function.function_name.ident, args, type) do |func|
                 @current_func = func
                 entry = func.basic_blocks.append "entry" do | builder |
                     @builder = builder
@@ -296,6 +340,7 @@ module Azula
                         ptr = @builder.alloca @types[param.type], param.ident
                         @vars[param.ident] = ptr
                         @builder.store func.params[i], ptr
+                        i += 1
                     end
                     self.compile function.body
                     if !@has_return
