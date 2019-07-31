@@ -109,14 +109,20 @@ module Azula
         def initialize(@type : TokenType, @literal : String, @file : String, @linenumber : Int32, @charnumber : Int32)
         end
 
+        # Get the string representation of this Token
         def to_string : String
             return "Token #{@type} (#{@literal}) in #{@file} line #{@linenumber}, character #{@charnumber}"
         end
 
+        # Get the `TokenType` of this Token
         getter type
+        # Get the literal string of this Token
         getter literal
+        # Get which file this Token is in
         getter file
+        # Get the line number this Token is on
         getter linenumber
+        # Get the character position of this token in the line
         getter charnumber
 
     end
