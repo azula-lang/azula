@@ -41,8 +41,10 @@ end
 
 c = Azula::Compiler.new smt
 c.compile
-c.write_to_file "test.ll"
 
-puts "Compiled >> test.ll"
+outfile = file.split("/")[file.split("/").size-1].sub(".azl", "") + ".ll"
+c.write_to_file outfile
+
+puts "Compiled >> #{outfile}"
 
 # c.compiler.run_function c.main_module.functions["main"], c.context
