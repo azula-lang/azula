@@ -2,7 +2,7 @@ name: Azula
 version: 0.1.0
 
 authors:
-  - OisinA <117397783@umail.ucc.ie>
+  - OisinA
 
 targets:
   Azula:
