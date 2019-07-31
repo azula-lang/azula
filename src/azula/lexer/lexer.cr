@@ -36,6 +36,7 @@ module Azula
             @read_position += 1
         end
 
+        # Advance current token pointer to the next token and generate the token
         def next_token : Token
             self.skip_whitespace
 
@@ -143,6 +144,7 @@ module Azula
             return Token.new token_type, "#{literal}", @file, line_num, char_num
         end
 
+        # Read an identifier until it finds a non-alphanumeric character eg. foo
         def read_identifier : String
             position = @position
             while @current_char.alphanumeric? || @current_char == '_'
@@ -151,6 +153,7 @@ module Azula
             return @input[position...@position]
         end
 
+        # Read a number until there are no more numbers
         def read_number : String
             position = @position
             while @current_char.number?
@@ -159,16 +162,19 @@ module Azula
             return @input[position...@position]
         end
 
+        # Continue reading until it reaches a non-whitespace character
         def skip_whitespace
             while @current_char == '\n' || @current_char == ' ' || @current_char == '\t' || @current_char == '\r'
                 self.read_char
             end
         end
 
+        # Returns the character after the current character
         def peek_char
             return @read_position >= @input.size ? Char::ZERO : @input[@read_position]
         end
 
+        # Skip to the next line in the event of a comment
         def next_line
             self.read_char
             i = 0
@@ -177,6 +183,7 @@ module Azula
             end
         end
 
+        # Keep reading until it reaches a " character and returns the string
         def read_string : String
             self.read_char
             position = @read_position - 1

@@ -18,7 +18,7 @@ module Azula
             end
 
             def to_string : String
-                return "#{@operator}#{@right.to_string}"
+                return "(#{@operator}#{@right.to_string})"
             end
 
             getter token

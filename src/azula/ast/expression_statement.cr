@@ -17,7 +17,7 @@ module Azula
             end
 
             def to_string : String
-                return "#{@expression.to_string};"
+                return "#{@expression.to_string}"
             end
 
             getter token

@@ -3,26 +3,31 @@ require "../token"
 require "../lexer"
 require "../types/*"
 
+# Add a prefix handler
 macro register_prefix(token_type, method_name)
     @prefix_funcs[TokenType::{{token_type}}] = ->{ self.{{method_name}}.as(AST::Expression?)}
 end
 
+# Add an infix handler
 macro register_infix(token_type, method_name)
     @infix_funcs[TokenType::{{token_type}}] = ->(exp: AST::Expression){ self.{{method_name}}(exp).as(AST::Expression?)}
 end
 
+# If peek token isn't token_type, return out of function
 macro expect_peek_return(token_type)
     if !self.expect_peek TokenType::{{token_type}}
         return
     end
 end
 
+# If var is nil, return out of function
 macro nil_return(var)
     if {{var}}.nil?
         return
     end
 end
 
+# Add the current_token to types, whether its a type or a string
 macro type_or_literal
     type = Types::Type.parse? @current_token.literal
     if type.nil?
@@ -91,6 +96,8 @@ module Azula
             register_prefix FALSE, parse_boolean_literal
             register_prefix LBRACKET, parse_grouped_expression
             register_prefix IDENTIFIER, parse_identifier
+            register_prefix NOT, parse_prefix_expression
+            register_prefix MINUS, parse_prefix_expression
 
             register_infix PLUS, parse_infix_expression
             register_infix MINUS, parse_infix_expression
@@ -314,6 +321,16 @@ module Azula
             nil_return right
 
             return AST::Infix.new tok, left, operator, right.not_nil!
+        end
+
+        def parse_prefix_expression : AST::Expression?
+            cur_token = @current_token
+            self.next_token
+            exp = self.parse_expression OperatorPrecedence::PREFIX
+            if exp.nil?
+                return nil
+            end
+            return Azula::AST::Prefix.new cur_token, cur_token.literal, exp.not_nil!
         end
 
         def parse_expression_list(last : TokenType) Array(AST::Expression)

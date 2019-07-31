@@ -42,12 +42,18 @@ module Azula
         # Null
         NULL
 
-        PLUS # +
-        MINUS # -
-        ASTERISK # *
-        EXPONENT # **
-        SLASH # /
-        MODULO # %
+        # +
+        PLUS
+        # -
+        MINUS
+        # *
+        ASTERISK
+        # **
+        EXPONENT
+        # /
+        SLASH
+        # %
+        MODULO
 
         # Equality
         EQ
@@ -82,15 +88,22 @@ module Azula
         # While loop
         WHILE
 
-        LBRACKET # (
-        RBRACKET # )
-        LBRACE # {
-        RBRACE # }
-        LSQUARE # [
-        RSQUARE # ]
+        # (
+        LBRACKET
+        # )
+        RBRACKET
+        # {
+        LBRACE
+        # }
+        RBRACE
+        # [
+        LSQUARE
+        # ]
+        RSQUARE
 
     end
 
+    # Token represents a syntax token used to generate the AST
     class Token
 
         def initialize(@type : TokenType, @literal : String, @file : String, @linenumber : Int32, @charnumber : Int32)
@@ -108,6 +121,7 @@ module Azula
 
     end
 
+    # Keyword string to its TokenType
     Keywords = {
         "int" => TokenType::TYPE,
         "bool" => TokenType::TYPE,

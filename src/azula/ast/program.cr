@@ -19,7 +19,7 @@ module Azula
                 @statements.each do |statement|
                     output += statement.to_string + "\n"
                 end
-                return output
+                return output[0..output.size-2]
             end
 
             getter statements
