@@ -53,5 +53,3 @@ system "clang -o #{outfile} #{outfile}.o"
 File.delete "#{outfile}.o"
 
 puts "Compiled to ./#{outfile}"
-
-# c.compiler.run_function c.main_module.functions["main"], c.context
