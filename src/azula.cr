@@ -42,9 +42,16 @@ end
 c = Azula::Compiler.new smt
 c.compile
 
-outfile = file.split("/")[file.split("/").size-1].sub(".azl", "") + ".ll"
-c.write_to_file outfile
+outfile = file.split("/")[file.split("/").size-1].sub(".azl", "")
 
-puts "Compiled >> #{outfile}"
+target = LLVM::Target.from_triple(LLVM.default_target_triple)
+machine = target.create_target_machine LLVM.default_target_triple
+machine.emit_obj_to_file c.main_module, "#{outfile}.o"
+
+system "clang -o #{outfile} #{outfile}.o"
+
+File.delete "#{outfile}.o"
+
+puts "Compiled to ./#{outfile}"
 
 # c.compiler.run_function c.main_module.functions["main"], c.context
