@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="generator" content="Crystal Docs 0.28.0">
+
+
+<link href="../../css/style.css" rel="stylesheet" type="text/css">
+
+<script type="text/javascript" src="../../js/doc.js"></script>
+<script type="text/javascript">
+  CrystalDoc.base_path = "../../";
+</script>
+
+  <meta id="repository-name" content="github.com/OisinA/AzulaCr">
+  <title>Azula::AST::Struct - github.com/OisinA/AzulaCr</title>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="search-box">
+      <input type="search" class="search-input" placeholder="Search..." spellcheck="false" aria-label="Search">
+    </div>
+
+    <div class="repository-links">
+      <a href="../../index.html">README</a>
+    </div>
+  </div>
+
+  <div class="search-results" class="hidden">
+    <ul class="search-list"></ul>
+  </div>
+
+  <div class="types-list">
+    <ul>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/toplevel" data-name="top level namespace">
+      <a href="../../toplevel.html">Top Level Namespace</a>
+      
+    </li>
+  
+  <li class="parent open current" data-id="github.com/OisinA/AzulaCr/Azula" data-name="azula">
+      <a href="../../Azula.html">Azula</a>
+      
+        <ul>
+  
+  <li class="parent open current" data-id="github.com/OisinA/AzulaCr/Azula/AST" data-name="azula::ast">
+      <a href="../../Azula/AST.html">AST</a>
+      
+        <ul>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Assign" data-name="azula::ast::assign">
+      <a href="../../Azula/AST/Assign.html">Assign</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Block" data-name="azula::ast::block">
+      <a href="../../Azula/AST/Block.html">Block</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/BooleanLiteral" data-name="azula::ast::booleanliteral">
+      <a href="../../Azula/AST/BooleanLiteral.html">BooleanLiteral</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Expression" data-name="azula::ast::expression">
+      <a href="../../Azula/AST/Expression.html">Expression</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/ExpressionStatement" data-name="azula::ast::expressionstatement">
+      <a href="../../Azula/AST/ExpressionStatement.html">ExpressionStatement</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/FloatLiteral" data-name="azula::ast::floatliteral">
+      <a href="../../Azula/AST/FloatLiteral.html">FloatLiteral</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Function" data-name="azula::ast::function">
+      <a href="../../Azula/AST/Function.html">Function</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/FunctionCall" data-name="azula::ast::functioncall">
+      <a href="../../Azula/AST/FunctionCall.html">FunctionCall</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Identifier" data-name="azula::ast::identifier">
+      <a href="../../Azula/AST/Identifier.html">Identifier</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/If" data-name="azula::ast::if">
+      <a href="../../Azula/AST/If.html">If</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Infix" data-name="azula::ast::infix">
+      <a href="../../Azula/AST/Infix.html">Infix</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/IntegerLiteral" data-name="azula::ast::integerliteral">
+      <a href="../../Azula/AST/IntegerLiteral.html">IntegerLiteral</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Macro" data-name="azula::ast::macro">
+      <a href="../../Azula/AST/Macro.html">Macro</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Node" data-name="azula::ast::node">
+      <a href="../../Azula/AST/Node.html">Node</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Prefix" data-name="azula::ast::prefix">
+      <a href="../../Azula/AST/Prefix.html">Prefix</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Program" data-name="azula::ast::program">
+      <a href="../../Azula/AST/Program.html">Program</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Return" data-name="azula::ast::return">
+      <a href="../../Azula/AST/Return.html">Return</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/Statement" data-name="azula::ast::statement">
+      <a href="../../Azula/AST/Statement.html">Statement</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/StringLiteral" data-name="azula::ast::stringliteral">
+      <a href="../../Azula/AST/StringLiteral.html">StringLiteral</a>
+      
+    </li>
+  
+  <li class=" current" data-id="github.com/OisinA/AzulaCr/Azula/AST/Struct" data-name="azula::ast::struct">
+      <a href="../../Azula/AST/Struct.html">Struct</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/StructAccess" data-name="azula::ast::structaccess">
+      <a href="../../Azula/AST/StructAccess.html">StructAccess</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/StructInitialise" data-name="azula::ast::structinitialise">
+      <a href="../../Azula/AST/StructInitialise.html">StructInitialise</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/TypedIdentifier" data-name="azula::ast::typedidentifier">
+      <a href="../../Azula/AST/TypedIdentifier.html">TypedIdentifier</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/AST/While" data-name="azula::ast::while">
+      <a href="../../Azula/AST/While.html">While</a>
+      
+    </li>
+  
+</ul>
+
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Compiler" data-name="azula::compiler">
+      <a href="../../Azula/Compiler.html">Compiler</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Lexer" data-name="azula::lexer">
+      <a href="../../Azula/Lexer.html">Lexer</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/OperatorPrecedence" data-name="azula::operatorprecedence">
+      <a href="../../Azula/OperatorPrecedence.html">OperatorPrecedence</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Parser" data-name="azula::parser">
+      <a href="../../Azula/Parser.html">Parser</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Token" data-name="azula::token">
+      <a href="../../Azula/Token.html">Token</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/TokenType" data-name="azula::tokentype">
+      <a href="../../Azula/TokenType.html">TokenType</a>
+      
+    </li>
+  
+  <li class="parent " data-id="github.com/OisinA/AzulaCr/Azula/Types" data-name="azula::types">
+      <a href="../../Azula/Types.html">Types</a>
+      
+        <ul>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Types/Type" data-name="azula::types::type">
+      <a href="../../Azula/Types/Type.html">Type</a>
+      
+    </li>
+  
+  <li class=" " data-id="github.com/OisinA/AzulaCr/Azula/Types/Typechecker" data-name="azula::types::typechecker">
+      <a href="../../Azula/Types/Typechecker.html">Typechecker</a>
+      
+    </li>
+  
+</ul>
+
+      
+    </li>
+  
+</ul>
+
+      
+    </li>
+  
+</ul>
+
+  </div>
+</div>
+
+
+<div class="main-content">
+<h1 class="type-name">
+
+  <span class="kind">class</span> Azula::AST::Struct
+
+</h1>
+
+
+  <ul class="superclass-hierarchy"><li class="superclass"><a href="../../Azula/AST/Struct.html">Azula::AST::Struct</a></li><li class="superclass"><a href="../../Azula/AST/Statement.html">Azula::AST::Statement</a></li><li class="superclass"><a href="../../Azula/AST/Node.html">Azula::AST::Node</a></li><li class="superclass">Reference</li><li class="superclass">Object</li></ul>
+
+
+
+
+  <h2>Overview</h2>
+
+  <p>Struct allows for custom datatypes that contain other datatypes.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <h2>Defined in:</h2>
+  
+    
+      <a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L9" target="_blank">
+        azula/ast/struct.cr
+      </a>
+    
+    <br/>
+  
+
+
+
+
+
+  <h2>Constructors</h2>
+  <ul class="list-summary">
+    
+      <li class="entry-summary">
+        <a href="#new%28token%2Cstruct_name%2Cfields%29-class-method" class="signature"><strong>.new</strong>(token, struct_name, fields)</a>
+        
+      </li>
+    
+  </ul>
+
+
+
+
+
+  <h2>Instance Method Summary</h2>
+  <ul class="list-summary">
+    
+      <li class="entry-summary">
+        <a href="#fields%3AArray%28Azula%3A%3AAST%3A%3ATypedIdentifier%29-instance-method" class="signature"><strong>#fields</strong> : Array(Azula::AST::TypedIdentifier)</a>
+        
+          <div class="summary"><p>The fields that this struct contains.</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#struct_name%3AAzula%3A%3AAST%3A%3AIdentifier-instance-method" class="signature"><strong>#struct_name</strong> : Azula::AST::Identifier</a>
+        
+          <div class="summary"><p>The <code><a href="../../Azula/AST/Identifier.html">Identifier</a></code> used to reference this struct.</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#to_string%3AString-instance-method" class="signature"><strong>#to_string</strong> : String</a>
+        
+          <div class="summary"><p>The literal string representation of this node.</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#token%3AAzula%3A%3AToken-instance-method" class="signature"><strong>#token</strong> : Azula::Token</a>
+        
+          <div class="summary"><p>Get the <code><a href="../../Azula/Token.html">Token</a></code> in this node.</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#token_literal%3AString-instance-method" class="signature"><strong>#token_literal</strong> : String</a>
+        
+          <div class="summary"><p>The literal token representation of this node.</p></div>
+        
+      </li>
+    
+  </ul>
+
+
+
+
+
+<div class="methods-inherited">
+  
+    
+
+
+    
+
+
+    
+
+
+  
+    
+
+  <h3>Instance methods inherited from class <code><a href="../../Azula/AST/Node.html">Azula::AST::Node</a></code></h3>
+  
+  
+    <a href="../../Azula/AST/Node.html#to_string%3AString-instance-method" class="tooltip">
+      <span>to_string : String</span>
+    to_string</a>, 
+    
+  
+    <a href="../../Azula/AST/Node.html#token_literal%3AString-instance-method" class="tooltip">
+      <span>token_literal : String</span>
+    token_literal</a>
+    
+  
+
+
+    
+
+
+    
+
+
+  
+    
+
+
+    
+
+
+    
+
+
+  
+    
+
+
+    
+
+
+    
+
+
+  
+</div>
+
+
+  <h2>Constructor Detail</h2>
+  
+    <div class="entry-detail" id="new(token,struct_name,fields)-class-method">
+      <div class="signature">
+        
+        def self.<strong>new</strong>(token, struct_name, fields)
+
+        <a class="method-permalink" href="#new%28token%2Cstruct_name%2Cfields%29-class-method">#</a>
+      </div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L15" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+
+
+
+
+
+  <h2>Instance Method Detail</h2>
+  
+    <div class="entry-detail" id="fields:Array(Azula::AST::TypedIdentifier)-instance-method">
+      <div class="signature">
+        
+        def <strong>fields</strong> : Array(<a href="../../Azula/AST/TypedIdentifier.html">Azula::AST::TypedIdentifier</a>)
+
+        <a class="method-permalink" href="#fields%3AArray%28Azula%3A%3AAST%3A%3ATypedIdentifier%29-instance-method">#</a>
+      </div>
+      
+        <div class="doc"><p>The fields that this struct contains.</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L37" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="struct_name:Azula::AST::Identifier-instance-method">
+      <div class="signature">
+        
+        def <strong>struct_name</strong> : <a href="../../Azula/AST/Identifier.html">Azula::AST::Identifier</a>
+
+        <a class="method-permalink" href="#struct_name%3AAzula%3A%3AAST%3A%3AIdentifier-instance-method">#</a>
+      </div>
+      
+        <div class="doc"><p>The <code><a href="../../Azula/AST/Identifier.html">Identifier</a></code> used to reference this struct.</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L35" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="to_string:String-instance-method">
+      <div class="signature">
+        
+        def <strong>to_string</strong> : String
+
+        <a class="method-permalink" href="#to_string%3AString-instance-method">#</a>
+      </div>
+      
+        <div class="doc"><p>The literal string representation of this node.</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L24" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="token:Azula::Token-instance-method">
+      <div class="signature">
+        
+        def <strong>token</strong> : <a href="../../Azula/Token.html">Azula::Token</a>
+
+        <a class="method-permalink" href="#token%3AAzula%3A%3AToken-instance-method">#</a>
+      </div>
+      
+        <div class="doc"><p>Get the <code><a href="../../Azula/Token.html">Token</a></code> in this node.</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L33" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="token_literal:String-instance-method">
+      <div class="signature">
+        
+        def <strong>token_literal</strong> : String
+
+        <a class="method-permalink" href="#token_literal%3AString-instance-method">#</a>
+      </div>
+      
+        <div class="doc"><p>The literal token representation of this node.</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/ast/struct.cr#L19" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+
+
+
+
+</div>
+
+</body>
+</html>

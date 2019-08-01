@@ -14,7 +14,7 @@
 </script>
 
   <meta id="repository-name" content="github.com/OisinA/AzulaCr">
-  <title>README - github.com/OisinA/AzulaCr</title>
+  <title>Top Level Namespace - github.com/OisinA/AzulaCr</title>
 </head>
 <body>
 
@@ -36,7 +36,7 @@
   <div class="types-list">
     <ul>
   
-  <li class=" " data-id="github.com/OisinA/AzulaCr/toplevel" data-name="top level namespace">
+  <li class=" current" data-id="github.com/OisinA/AzulaCr/toplevel" data-name="top level namespace">
       <a href="toplevel.html">Top Level Namespace</a>
       
     </li>
@@ -238,48 +238,249 @@
 
 
 <div class="main-content">
-<h2>Azula</h2>
+<h1 class="type-name">
 
-<p>Azula is a strongly-typed compiled language, using an LLVM backend, with the following goals:</p>
+  Top Level Namespace
 
-<ul><li>Static typing</li><li>Easy-to-read syntax</li><li>Efficient execution</li></ul>
+</h1>
 
-<p><a href="https://azula-lang.github.io/azula/#/" target="_blank">Documentation</a></p>
 
-<h3>Origin</h3>
 
-<p>Azula started as a learning exercise through the <a href="https://interpreterbook.com" target="_blank">Writing a Interpreter in Go</a> and <a href="https://compilerbook.com" target="_blank">Writing a Compiler in Go</a> books by Thorsten Ball. As I reached the end of the compiler, rather than expanding the VM for Azula, I decided compiling to LLVM would make the language far more usable. Rather than attempting to change the version written in Go, I decided to rewrite Azula from scratch in Crystal.</p>
 
-<h3>Goals</h3>
 
-<ul><li>~~Tokenizer~~</li><li>~~Lexer~~</li><li>~~Parser~~</li><li>Compiler</li><li>Write documentation in code</li><li>Compiler Optimization</li><li>Standard Library</li><li>Self-hosting compiler</li></ul>
 
-<h2>Compiling</h2>
 
-<p>Currently Azula only compiles to LLIR, therefore LLVM is required to run the compiled files.</p>
 
-<pre><code>crystal run src<span class="s">/azula.cr -- FILENAME</code></pre>
 
-<p>or if built</p>
 
-<pre><code>azula <span class="t">FILENAME</span></code></pre>
 
-<h3>Example Code</h3>
 
-<pre><code>func fib(int x): int {
-    <span class="k">if</span>(x <span class="o">==</span> <span class="n">0</span> or x <span class="o">==</span> <span class="n">1</span>) {
-        <span class="k">return</span> x;
-    }
-    <span class="k">return</span> fib(x <span class="o">-</span> <span class="n">1</span>) <span class="o">+</span> fib(x <span class="o">-</span> <span class="n">2</span>);
-}
 
-func main(): void {
-    print(fib(<span class="n">15</span>));
-}</code></pre>
 
-<h2>Contributors</h2>
 
-<ul><li><a href="https://github.com/OisinA" target="_blank">OisinA</a></li></ul>
+
+
+
+  <h2>Defined in:</h2>
+  
+
+
+
+  
+    <h2>Constant Summary</h2>
+  
+  <dl>
+    
+      <dt class="entry-const" id="PROMPT">
+        <strong>PROMPT</strong> = <code><span class="s">&quot;&gt;&gt; &quot;</span></code>
+      </dt>
+      
+    
+      <dt class="entry-const" id="VERSION">
+        <strong>VERSION</strong> = <code><span class="s">&quot;0.3.0&quot;</span></code>
+      </dt>
+      
+    
+  </dl>
+
+
+
+
+
+
+
+
+
+  <h2>Macro Summary</h2>
+  <ul class="list-summary">
+    
+      <li class="entry-summary">
+        <a href="#convert_and_check_nil%28val%29-macro" class="signature"><strong>convert_and_check_nil</strong>(val)</a>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#expect_peek_return%28token_type%29-macro" class="signature"><strong>expect_peek_return</strong>(token_type)</a>
+        
+          <div class="summary"><p>If peek token isn't token_type, return out of function</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#nil_return%28var%29-macro" class="signature"><strong>nil_return</strong>(var)</a>
+        
+          <div class="summary"><p>If var is nil, return out of function</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#register_infix%28token_type%2Cmethod_name%29-macro" class="signature"><strong>register_infix</strong>(token_type, method_name)</a>
+        
+          <div class="summary"><p>Add an infix handler</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#register_prefix%28token_type%2Cmethod_name%29-macro" class="signature"><strong>register_prefix</strong>(token_type, method_name)</a>
+        
+          <div class="summary"><p>Add a prefix handler</p></div>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#return_if_nil%28val%29-macro" class="signature"><strong>return_if_nil</strong>(val)</a>
+        
+      </li>
+    
+      <li class="entry-summary">
+        <a href="#type_or_literal-macro" class="signature"><strong>type_or_literal</strong></a>
+        
+          <div class="summary"><p>Add the current_token to types, whether its a type or a string</p></div>
+        
+      </li>
+    
+  </ul>
+
+
+
+<div class="methods-inherited">
+  
 </div>
+
+
+
+
+
+
+
+
+  <h2>Macro Detail</h2>
+  
+    <div class="entry-detail" id="convert_and_check_nil(val)-macro">
+      <div class="signature">
+        
+        macro <strong>convert_and_check_nil</strong>(val)
+
+        <a class="method-permalink" href="#convert_and_check_nil%28val%29-macro">#</a>
+      </div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/compiler/compiler.cr#L5" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="expect_peek_return(token_type)-macro">
+      <div class="signature">
+        
+        macro <strong>expect_peek_return</strong>(token_type)
+
+        <a class="method-permalink" href="#expect_peek_return%28token_type%29-macro">#</a>
+      </div>
+      
+        <div class="doc"><p>If peek token isn't token_type, return out of function</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/parser/parser.cr#L17" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="nil_return(var)-macro">
+      <div class="signature">
+        
+        macro <strong>nil_return</strong>(var)
+
+        <a class="method-permalink" href="#nil_return%28var%29-macro">#</a>
+      </div>
+      
+        <div class="doc"><p>If var is nil, return out of function</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/parser/parser.cr#L24" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="register_infix(token_type,method_name)-macro">
+      <div class="signature">
+        
+        macro <strong>register_infix</strong>(token_type, method_name)
+
+        <a class="method-permalink" href="#register_infix%28token_type%2Cmethod_name%29-macro">#</a>
+      </div>
+      
+        <div class="doc"><p>Add an infix handler</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/parser/parser.cr#L12" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="register_prefix(token_type,method_name)-macro">
+      <div class="signature">
+        
+        macro <strong>register_prefix</strong>(token_type, method_name)
+
+        <a class="method-permalink" href="#register_prefix%28token_type%2Cmethod_name%29-macro">#</a>
+      </div>
+      
+        <div class="doc"><p>Add a prefix handler</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/parser/parser.cr#L7" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="return_if_nil(val)-macro">
+      <div class="signature">
+        
+        macro <strong>return_if_nil</strong>(val)
+
+        <a class="method-permalink" href="#return_if_nil%28val%29-macro">#</a>
+      </div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/types/typechecker.cr#L4" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+    <div class="entry-detail" id="type_or_literal-macro">
+      <div class="signature">
+        
+        macro <strong>type_or_literal</strong>
+
+        <a class="method-permalink" href="#type_or_literal-macro">#</a>
+      </div>
+      
+        <div class="doc"><p>Add the current_token to types, whether its a type or a string</p></div>
+      
+      <br/>
+      <div>
+        
+          [<a href="https://github.com/OisinA/AzulaCr/blob/cbd93465bad38e13e9ecad66d6c4a6cbbde043f4/src/azula/parser/parser.cr#L31" target="_blank">View source</a>]
+        
+      </div>
+    </div>
+  
+
+
+</div>
+
 </body>
 </html>
