@@ -14,8 +14,8 @@ puts "Azula " + VERSION
 
 #print PROMPT
 if ARGV.size != 1
-  puts "Incorrect number of arguments."
-  exit
+    puts "Incorrect number of arguments."
+    exit
 end
 file = ARGV[0]
 content = File.read file
@@ -25,9 +25,9 @@ p = Azula::Parser.new l
 smt = p.parse_program
 
 if !p.errors.empty?
-  p.errors.each do |error|
-    puts error
-  end
+    p.errors.each do |error|
+        puts error
+    end
 end
 
 # t = Azula::Types::Typechecker.new
