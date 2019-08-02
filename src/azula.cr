@@ -13,11 +13,12 @@ PROMPT = ">> "
 puts "Azula " + VERSION
 
 #print PROMPT
-if ARGV.size != 1
+if ARGV.size != 2
     puts "Incorrect number of arguments."
     exit
 end
-file = ARGV[0]
+todo = ARGV[0]
+file = ARGV[1]
 content = File.read file
 l = Azula::Lexer.new content
 l.file = file
@@ -44,12 +45,28 @@ c.compile
 
 outfile = file.split("/")[file.split("/").size-1].sub(".azl", "")
 
-target = LLVM::Target.from_triple(LLVM.default_target_triple)
-machine = target.create_target_machine LLVM.default_target_triple
-machine.emit_obj_to_file c.main_module, "#{outfile}.o"
+if todo == "build"
+    target = LLVM::Target.from_triple(LLVM.default_target_triple)
+    machine = target.create_target_machine LLVM.default_target_triple
+    machine.emit_obj_to_file c.main_module, "#{outfile}.o"
 
-system "clang -o #{outfile} #{outfile}.o"
+    system "clang -o #{outfile} -lstdc++ #{outfile}.o"
 
-File.delete "#{outfile}.o"
+    File.delete "#{outfile}.o"
 
-puts "Compiled to ./#{outfile}"
+    puts "Compiled to ./#{outfile}"
+elsif todo == "run"
+    target = LLVM::Target.from_triple(LLVM.default_target_triple)
+    machine = target.create_target_machine LLVM.default_target_triple
+    machine.emit_obj_to_file c.main_module, "#{outfile}.o"
+
+    system "clang -o #{outfile} -lstdc++ #{outfile}.o"
+
+    File.delete "#{outfile}.o"
+
+    system "./#{outfile}"
+elsif todo == "llir"
+    c.write_to_file "#{outfile}.ll"
+    puts "Wrote LLIR to #{outfile}.ll"
+end
+

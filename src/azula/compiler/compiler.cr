@@ -14,11 +14,22 @@ module Azula
         @builder : LLVM::Builder
         @printfunc : LLVM::Function
         @putsfunc : LLVM::Function
+        @sinfunc : LLVM::Function
+        @strlen : LLVM::Function
+        @system : LLVM::Function
+        @fopen : LLVM::Function
+        @fgets : LLVM::Function
+        @socket : LLVM::Function
+        @sizeof : LLVM::Function
+        @connect : LLVM::Function
+        @print : LLVM::Function
 
         @types : Hash(Types::Type, LLVM::Type)
 
         @builtin_funcs : Hash(String, LLVM::Function)
         @vars : Hash(String, LLVM::Value)
+
+        @string_type : LLVM::Type
 
         @current_func : LLVM::Function?
         @has_return = false
@@ -35,37 +46,48 @@ module Azula
             @builder = @context.new_builder
             @printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
             @putsfunc = @main_module.functions.add("puts", [@context.void_pointer], @context.int32, true)
-            # mainfunc = @module.functions.add("main", [] of LLVM::Type, @context.void, true) do |func|
-            #     entry = func.basic_blocks.append "entry" do | builder |
-            #         @builder = builder
-            #         self.printf "Error: this works"
-            #         builder.ret
+            @sinfunc = @main_module.functions.add("sqrt", [@context.double], @context.double, true)
+            @strlen = @main_module.functions.add("strlen", [@context.void_pointer], @context.int32, true)
+            @system = @main_module.functions.add("system", [@context.void_pointer], @context.int32, true)
+            @fopen = @main_module.functions.add("system", [@context.void_pointer, @context.void_pointer], @context.int32, true)
+            @fgets = @main_module.functions.add("gets", [@context.void_pointer, @context.void_pointer], @context.void_pointer, true)
+            @socket = @main_module.functions.add("socket", [@context.int32, @context.int32, @context.int32], @context.int32, true)
+            @connect = @main_module.functions.add("connect", [@context.int32, @context.void_pointer, @context.int32], @context.int32, true)
+            @sizeof = @main_module.functions.add("sizeof", [@context.void_pointer], @context.int32, true)
+            
+            @string_type = @context.struct([@context.int8.pointer, @context.int32, @context.int32], "String")
 
-            #     end
-            # end
-            # tostring = @main_module.functions.add("string", [@context.int32], @context.void_pointer, true) do |func|
-            #     entry = func.basic_blocks.append "entry" do |builder|
-            #         ptr = builder.trunc(func.params[0], @context.int8)
-            #         array = @context.int8.const_array([ptr])
-            #         alloca = builder.alloca @context.int8.array(1), "tmp"
-            #         ptr1 = builder.store alloca, array
-            #         builder.ret array
-            #     end
-            # end
+            @print = @main_module.functions.add("print", [@string_type.pointer], @context.void, true) do |func|
+                entry = func.basic_blocks.append "entry" do | builder |
+                    v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
+                    val = builder.load v
+                    builder.call @printfunc, val#
+                    builder.ret
+                end
+            end
+
             @types = {
                 Types::Type::VOID => @context.void,
                 Types::Type::INT => @context.int32,
                 Types::Type::BOOL => @context.int1,
-                Types::Type::FLOAT => @context.double
-                #Types::Type::STRING => @context.int8.array(),
+                Types::Type::FLOAT => @context.double,
+                Types::Type::STRING => @string_type,
             }
             @builtin_funcs = {
-                "print" => @printfunc,
+                "__printf" => @printfunc,
                 "puts" => @putsfunc,
-                #"to_string" => tostring,
+                "sqrt" => @sinfunc,
+                "strlen" => @strlen,
+                "system" => @system,
+                "__fopen" => @fopen,
+                "gets" => @fgets,
+                "socket" => @socket,
+                "connect" => @connect,
+                "sizeof" => @sizeof,
             }
             @vars = {} of String=>LLVM::Value
             @structs = {} of String=>LLVM::Type
+            @struct_fields = {} of String=>Hash(String, Int32)
             LLVM.init_x86
             @compiler = LLVM::JITCompiler.new @main_module
         end
@@ -157,7 +179,15 @@ module Azula
                 return @context.double.const_double node.value.to_f64
             when .is_a?(Azula::AST::StringLiteral)
                 convert_and_check_nil StringLiteral
-                return @builder.global_string_pointer(node.value)
+                ptr = @builder.global_string_pointer(node.value)
+                str = @context.const_struct [
+                    ptr,
+                    @context.int32.const_int(node.value.bytesize),
+                    @context.int32.const_int(node.value.size),
+                ]
+                alloca = @builder.alloca @string_type
+                @builder.store str, alloca
+                return alloca
             when .is_a?(Azula::AST::BooleanLiteral)
                 convert_and_check_nil BooleanLiteral
                 if node.value
@@ -285,13 +315,24 @@ module Azula
             when .is_a?(Azula::AST::Struct)
                 convert_and_check_nil Struct
                 vars = [] of LLVM::Type
+                indexes = {} of String=>Int32
+                i = 0
                 node.fields.each do |field|
                     type = @types.fetch field.type, nil
                     if !type.nil?
                         vars << type
+                    else
+                        struc = @structs.fetch field.type, nil
+                        if struc.nil?
+                            return
+                        end
+                        vars << struc
                     end
+                    indexes[field.ident] = i
+                    i += 1
                 end
                 @structs[node.struct_name.ident] = @context.struct(vars, node.struct_name.ident)
+                @struct_fields[node.struct_name.ident] = indexes
                 return
             when .is_a?(Azula::AST::StructInitialise)
                 convert_and_check_nil StructInitialise
@@ -307,7 +348,28 @@ module Azula
                         vals << value
                     end
                 end
-                return @context.const_struct(vals)
+                val = struc.context.const_struct(vals)
+                return val
+            when .is_a?(Azula::AST::StructAccess)
+                convert_and_check_nil StructAccess
+                struc = self.compile node.struct_exp
+                if struc.nil?
+                    return
+                end
+
+                alloca = @builder.alloca struc.not_nil!.type
+                @builder.store struc.not_nil!, alloca
+
+                fields = @struct_fields[struc.type.struct_name]
+                field = fields.fetch node.field.as(Azula::AST::Identifier).ident, nil
+                if field.nil?
+                    puts "invalid field"
+                    return
+                end
+
+                gep = @builder.gep alloca, @context.int32.const_int(0), @context.int32.const_int(field)
+                load = @builder.load gep
+                return load
             end
         end
 
