@@ -25,15 +25,18 @@ Azula started as a learning exercise through the [Writing a Interpreter in Go](h
 - Self-hosting compiler
 
 ## Compiling
-Currently Azula only compiles to LLIR, therefore LLVM is required to run the compiled files.
-
 ```
-crystal run src/azula.cr -- FILENAME
+azula build FILENAME
 ```
 
-or if built
+or to run directly:
 ```
-azula FILENAME
+azula run FILENAME
+```
+
+or to view the LLIR output:
+```
+azula llir FILENAME
 ```
 
 ### Example Code
