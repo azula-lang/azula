@@ -110,6 +110,8 @@ module Azula
                 machine.emit_obj_to_file @main_module, "#{file}.o"
 
                 system "clang -o #{file} -lstdc++ #{file}.o"
+
+                File.delete "#{file}.o"
             end
 
         end

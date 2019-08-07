@@ -12,11 +12,10 @@ PROMPT = ">> "
 
 puts "Azula " + VERSION
 
-print PROMPT
-# if ARGV.size != 2
-#     puts "Incorrect number of arguments."
-#     exit
-# end
+if ARGV.size != 2
+    puts "Incorrect number of arguments."
+    exit
+end
 todo = ARGV[0]
 file = ARGV[1]
 content = File.read file
@@ -43,5 +42,17 @@ end
 c = Azula::Compiler::Compiler.new
 c.register_visitors
 c.compile smt
-c.create_executable "test"
-c.write_to_file "test.ll"
+
+outfile = file.split("/")[file.split("/").size-1].sub(".azl", "")
+
+if todo == "build"
+    c.create_executable "#{outfile}"
+    puts "Compiled to ./#{outfile}"
+elsif todo == "run"
+    c.create_executable "#{outfile}"
+    system "./#{outfile}"
+    File.delete "#{outfile}"
+elsif todo == "llir"
+    c.write_to_file "#{outfile}.ll"
+    puts "Wrote LLIR to #{outfile}.ll"
+end
