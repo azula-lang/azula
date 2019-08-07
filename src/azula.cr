@@ -12,11 +12,11 @@ PROMPT = ">> "
 
 puts "Azula " + VERSION
 
-#print PROMPT
-if ARGV.size != 2
-    puts "Incorrect number of arguments."
-    exit
-end
+print PROMPT
+# if ARGV.size != 2
+#     puts "Incorrect number of arguments."
+#     exit
+# end
 todo = ARGV[0]
 file = ARGV[1]
 content = File.read file
@@ -40,33 +40,8 @@ end
 #   end
 # end
 
-c = Azula::Compiler.new smt
-c.compile
-
-outfile = file.split("/")[file.split("/").size-1].sub(".azl", "")
-
-if todo == "build"
-    target = LLVM::Target.from_triple(LLVM.default_target_triple)
-    machine = target.create_target_machine LLVM.default_target_triple
-    machine.emit_obj_to_file c.main_module, "#{outfile}.o"
-
-    system "clang -o #{outfile} -lstdc++ #{outfile}.o"
-
-    File.delete "#{outfile}.o"
-
-    puts "Compiled to ./#{outfile}"
-elsif todo == "run"
-    target = LLVM::Target.from_triple(LLVM.default_target_triple)
-    machine = target.create_target_machine LLVM.default_target_triple
-    machine.emit_obj_to_file c.main_module, "#{outfile}.o"
-
-    system "clang -o #{outfile} -lstdc++ #{outfile}.o"
-
-    File.delete "#{outfile}.o"
-
-    system "./#{outfile}"
-elsif todo == "llir"
-    c.write_to_file "#{outfile}.ll"
-    puts "Wrote LLIR to #{outfile}.ll"
-end
-
+c = Azula::Compiler::Compiler.new
+c.register_visitors
+c.compile smt
+c.create_executable "test"
+c.write_to_file "test.ll"

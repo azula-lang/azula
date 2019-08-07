@@ -274,6 +274,7 @@ describe Azula::Parser do
                 "int y = 10;" => ["y"],
                 "float x = 10.2; bool y = 11;" => ["x", "y"],
                 "string my_string = \"hello world\";" => ["my_string"],
+                "int x, y = 5, 2;" => ["x"],
             }
 
             tests.each do | test, result |
