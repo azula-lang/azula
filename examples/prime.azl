@@ -1,6 +1,5 @@
 func is_prime(int x): bool {
-    int i = 1;
-    int divisors = 0;
+    int i, divisors = 1, 0;
     while(i <= x / 2) {
         if(x % i == 0) {
             divisors = divisors + 1;
@@ -12,10 +11,9 @@ func is_prime(int x): bool {
 
 func main(): void {
     int i = 0;
-    while(i < 10000) {
-        printf("%d: %d", i, is_prime(i));
-        puts("");
+    while(i < 100) {
+        print("%d: %d%c", i, is_prime(i), 10);
         i = i + 1;
     }
-    printf("%c%c", 10, 13);
+    print("%c%c", 10, 13);
 }
