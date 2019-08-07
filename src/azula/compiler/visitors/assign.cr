@@ -32,8 +32,10 @@ module Azula
                     # Get type of vars to be assigned
                     assign_type = compiler.types.fetch ident.type, nil
                     if assign_type.nil?
-                        # Check structs
-                        return
+                        assign_type = compiler.structs.fetch ident.type, nil
+                        if assign_type.nil?
+                            return
+                        end
                     end
                     # Compile value of assign statement
                     val = compiler.compile node.values[0]

@@ -17,6 +17,9 @@ module Azula
             @types = {} of Types::Type=>LLVM::Type
             @builtin_funcs = {} of String=>LLVM::Function
 
+            @structs = {} of String=>LLVM::Type
+            @struct_fields = {} of String=>Hash(String, Int32)
+
             @has_return : Bool = false
 
             @string_type : LLVM::Type
@@ -29,6 +32,9 @@ module Azula
             getter has_return
             getter types
             getter string_type
+
+            getter structs
+            getter struct_fields
 
             setter builder
             setter current_func

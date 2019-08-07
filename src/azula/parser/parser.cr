@@ -510,8 +510,6 @@ module Azula
 
             expect_peek_return RBRACE
 
-            self.next_token
-
             return AST::Struct.new tok, name, fields
         end
 
