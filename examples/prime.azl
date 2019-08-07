@@ -1,6 +1,5 @@
 func is_prime(int x): bool {
-    int i = 1;
-    int divisors = 0;
+    int i, divisors = 1, 0;
     while(i <= x / 2) {
         if(x % i == 0) {
             divisors = divisors + 1;
