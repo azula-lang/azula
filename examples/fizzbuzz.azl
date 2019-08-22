@@ -1,0 +1,13 @@
+func fizz_buzz(int start, int end): void {
+    while(start < end) {
+        print("%d %c", start, 10);
+        if(start % 3 == 0 and start % 5 == 0) {
+            print("Fizzbuzz");
+        }
+        start = start + 1;
+    }
+}
+
+func main(): void {
+    fizz_buzz(1, 20);
+}

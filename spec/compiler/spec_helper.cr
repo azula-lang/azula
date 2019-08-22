@@ -1,5 +1,5 @@
 require "spec"
 
-def run()
-
+def run(code: String)
+    
 end
