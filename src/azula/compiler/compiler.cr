@@ -20,6 +20,8 @@ module Azula
             @structs = {} of String=>LLVM::Type
             @struct_fields = {} of String=>Hash(String, Int32)
 
+            @visitors = {} of AST::Node.class=>Visitors::Visitor
+
             @has_return : Bool = false
 
             @string_type : LLVM::Type
@@ -64,11 +66,11 @@ module Azula
                     entry = func.basic_blocks.append "entry" do | builder |
                         v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
                         val = builder.load v
-                        builder.call builtin_printfunc, val#
+                        builder.call builtin_printfunc, val
                         builder.ret
                     end
                 end
-                add_builtin_func("__printf", builtin_printfunc)
+                # add_builtin_func("__printf", builtin_printfunc)
                 add_builtin_func("print", print_func)
             end
 
@@ -76,8 +78,6 @@ module Azula
             def add_builtin_func(name : String, func : LLVM::Function)
                 @builtin_funcs[name] = func
             end
-
-            @visitors = {} of AST::Node.class=>Visitors::Visitor
 
             # Macro that registers each subclass of Visitor against the Node it is meant to visit
             def register_visitors
