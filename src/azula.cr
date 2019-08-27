@@ -37,6 +37,7 @@ end
 #   t.errors.each do |error|
 #     puts error
 #   end
+#   exit
 # end
 
 c = Azula::Compiler::Compiler.new

@@ -67,6 +67,7 @@ module Azula
                         v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
                         val = builder.load v
                         builder.call builtin_printfunc, val
+                        builder.call builtin_printfunc, [builder.global_string_pointer("%c"), @context.int32.const_int(10)]
                         builder.ret
                     end
                 end

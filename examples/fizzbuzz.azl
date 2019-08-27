@@ -1,8 +1,13 @@
 func fizz_buzz(int start, int end): void {
-    while(start < end) {
-        print("%d %c", start, 10);
-        if(start % 3 == 0 and start % 5 == 0) {
-            print("Fizzbuzz");
+    while(start <= end) {
+        if(start % 3 == 0) {
+            print("Fizz");
+        }
+        if(start % 5 == 0) {
+            print("Buzz");
+        }
+        if(start % 3 != 0 and start % 5 != 0) {
+            print("%d", start);
         }
         start = start + 1;
     }

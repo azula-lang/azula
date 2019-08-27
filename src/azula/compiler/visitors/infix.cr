@@ -33,6 +33,8 @@ module Azula
                         return compiler.builder.sub(left, right)
                     when "=="
                         return compiler.builder.icmp(LLVM::IntPredicate::EQ, left, right)
+                    when "!="
+                        return compiler.builder.icmp(LLVM::IntPredicate::NE, left, right)
                     when "<"
                         return compiler.builder.icmp(LLVM::IntPredicate::SLT, left, right)
                     when "<="
