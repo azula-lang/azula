@@ -15,5 +15,5 @@ func fizz_buzz(int start, int end): void {
 }
 
 func main(): void {
-    fizz_buzz(1, 20);
+    fizz_buzz(1, 100);
 }

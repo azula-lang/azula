@@ -18,9 +18,9 @@ describe Azula::Compiler do
             input = wrap_main("
             if(true) {
                 if(false) { 
-                    return 14; 
+                    return 14;
                 } else { 
-                    return 20; 
+                    return 20;
                 } 
             } else { 
                 return 10; 

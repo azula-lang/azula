@@ -15,10 +15,10 @@ describe Azula::Compiler do
             run(input).not_nil!.to_f64.to_f32.should eq 5.234.to_f32
         end
 
-        # it "string" do
-        #     input = wrap_main("string s = \"hi\"; return s;", "string")
-        #     run(input).not_nil!.to_string.should eq "hi"
-        # end
+        it "string" do
+            input = wrap_main("string s = \"hi\"; print(s);", "void")
+            compile_and_run(input).should eq "hi\n"
+        end
 
         it "boolean" do
             input = wrap_main("return true;", "bool")
