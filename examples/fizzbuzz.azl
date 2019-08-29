@@ -1,10 +1,13 @@
 // Fizzbuzz is a very common interview problem, or at least used to be...
 func fizz_buzz(int start, int end): void {
     while(start <= end) {
-        if(start % 3 == 0) {
+        if(start % 3 == 0 and start % 5 == 0) {
+            print("FizzBuzz");
+        }
+        if(start % 3 == 0 and start % 5 != 0) {
             print("Fizz");
         }
-        if(start % 5 == 0) {
+        if(start % 5 == 0 and start % 3 != 0) {
             print("Buzz");
         }
         if(start % 3 != 0 and start % 5 != 0) {

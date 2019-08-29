@@ -33,6 +33,22 @@ describe Azula::Compiler do
             run(input).not_nil!.to_i.should eq 10
         end
 
+        it "multiple assign function" do
+            input = "
+            func test(int x): int {
+                return x;
+            }
+
+            func main(): void {
+                int z = 5;
+                int x, y = test(z), test(z + 5);
+
+                print(\"%d %d\", x, y);
+            }
+            "
+            compile_and_run(input).should eq "5 10\n"
+        end
+
     end
 
 end

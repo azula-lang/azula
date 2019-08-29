@@ -2,6 +2,7 @@ require "./visitors/*"
 require "../ast/*"
 require "llvm"
 require "../types"
+require "./builtins"
 
 module Azula
     module Compiler
@@ -26,6 +27,9 @@ module Azula
 
             @string_type : LLVM::Type
 
+            @print_funcs = {} of LLVM::Type=>LLVM::Function
+            @builtin_printfunc : LLVM::Function
+
             getter context
             getter main_module
             getter builder
@@ -34,6 +38,8 @@ module Azula
             getter has_return
             getter types
             getter string_type
+            getter print_funcs
+            getter builtin_printfunc
 
             getter structs
             getter struct_fields
@@ -56,28 +62,9 @@ module Azula
                     Types::Type::STRING => @string_type,
                 }
 
+                @builtin_printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
+
                 add_builtins
-            end
-
-            # Add the builtin functions
-            def add_builtins
-                builtin_printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
-                print_func = @main_module.functions.add("print", [@string_type.pointer], @context.void, true) do |func|
-                    entry = func.basic_blocks.append "entry" do | builder |
-                        v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
-                        val = builder.load v
-                        builder.call builtin_printfunc, val
-                        builder.call builtin_printfunc, [builder.global_string_pointer("%c"), @context.int32.const_int(10)]
-                        builder.ret
-                    end
-                end
-                # add_builtin_func("__printf", builtin_printfunc)
-                add_builtin_func("print", print_func)
-            end
-
-            # Register builtin function
-            def add_builtin_func(name : String, func : LLVM::Function)
-                @builtin_funcs[name] = func
             end
 
             # Macro that registers each subclass of Visitor against the Node it is meant to visit

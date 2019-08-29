@@ -49,9 +49,14 @@ def compile_and_run(code : String)
 
     c.create_executable "tests_temp"
     stdout = IO::Memory.new
-    Process.run("./tests_temp", output: stdout)
+    stderr = IO::Memory.new
+    status = Process.run("./tests_temp", output: stdout, error: stderr)
     File.delete "tests_temp"
-    return stdout.to_s
+    if status.success?
+        return stdout.to_s
+    else
+        return stderr.to_s
+    end
 end
 
 def wrap_main(input : String, return_type : String) String

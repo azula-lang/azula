@@ -11,9 +11,8 @@ func is_prime(int x): bool {
 
 func main(): void {
     int i = 0;
-    while(i < 100) {
-        print("%d: %d%c", i, is_prime(i), 10);
+    while(i < 1000000) {
+        print("%d: %d", i, is_prime(i));
         i = i + 1;
     }
-    print("%c%c", 10, 13);
 }

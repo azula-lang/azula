@@ -27,6 +27,15 @@ module Azula
                         args << val
                     end
 
+                    if node.function_name.ident == "print"
+                        args.each do |arg|
+                            compiler.builder.call compiler.print_funcs[arg.type], arg
+                            compiler.builder.call compiler.builtin_printfunc, [compiler.builder.global_string_pointer(" ")]
+                        end
+                        compiler.builder.call compiler.builtin_printfunc, [compiler.builder.global_string_pointer("%c"), compiler.context.int32.const_int(10)]
+                        return
+                    end
+
                     return compiler.builder.call compiler.main_module.functions[node.function_name.ident], args
                 end
 
