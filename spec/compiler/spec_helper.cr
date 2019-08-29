@@ -52,11 +52,8 @@ def compile_and_run(code : String)
     stderr = IO::Memory.new
     status = Process.run("./tests_temp", output: stdout, error: stderr)
     File.delete "tests_temp"
-    if status.success?
-        return stdout.to_s
-    else
-        return stderr.to_s
-    end
+    output = stdout.to_s.gsub("\n", "")
+    return output[0..output.size-2]
 end
 
 def wrap_main(input : String, return_type : String) String

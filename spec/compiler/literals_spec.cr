@@ -17,7 +17,7 @@ describe Azula::Compiler do
 
         it "string" do
             input = wrap_main("string s = \"hi\"; print(s);", "void")
-            compile_and_run(input).should eq "hi\n"
+            compile_and_run(input).should eq "hi"
         end
 
         it "boolean" do

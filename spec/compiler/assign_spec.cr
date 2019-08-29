@@ -17,7 +17,7 @@ describe Azula::Compiler do
 
         it "string" do
             input = wrap_main("string s = \"hi\"; print(s);", "string")
-            compile_and_run(input).should eq "hi\n"
+            compile_and_run(input).should eq "hi"
         end
 
         it "boolean" do
@@ -43,10 +43,10 @@ describe Azula::Compiler do
                 int z = 5;
                 int x, y = test(z), test(z + 5);
 
-                print(\"%d %d\", x, y);
+                print(x, y);
             }
             "
-            compile_and_run(input).should eq "5 10\n"
+            compile_and_run(input).should eq "5 10"
         end
 
     end
