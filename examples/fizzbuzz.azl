@@ -11,7 +11,7 @@ func fizz_buzz(int start, int end): void {
             print("Buzz");
         }
         if(start % 3 != 0 and start % 5 != 0) {
-            print("%d", start);
+            print(start);
         }
         start = start + 1;
     }
