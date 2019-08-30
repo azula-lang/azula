@@ -25,8 +25,10 @@ module Azula
                     node.parameters.each do |param|
                         arg_type = compiler.types.fetch param.type, nil
                         if arg_type.nil?
-                            # Check if struct
-                            next
+                            arg_type = compiler.structs.fetch param.type, nil
+                            if arg_type.nil?
+                                next
+                            end
                         end
                         args << arg_type
                     end
@@ -34,8 +36,10 @@ module Azula
                     # Get the return type of the function
                     return_type = compiler.types.fetch node.return_types[0], nil
                     if return_type.nil?
-                        # Check structs
-                        return
+                        return_type = compiler.structs.fetch node.return_types[0], nil
+                        if return_type.nil?
+                            return
+                        end
                     end
 
                     compiler.main_module.functions.add(node.function_name.ident, args, return_type) do |func|
@@ -45,7 +49,14 @@ module Azula
 
                             index = 0
                             node.parameters.each do |param|
-                                ptr = builder.alloca compiler.types[param.type], param.ident
+                                param_type = compiler.types.fetch param.type, nil
+                                if param_type.nil?
+                                    param_type = compiler.structs.fetch param.type, nil
+                                    if param_type.nil?
+                                        next
+                                    end
+                                end
+                                ptr = builder.alloca param_type, param.ident
                                 compiler.vars[param.ident] = ptr
                                 builder.store func.params[index], ptr
                                 index += 1

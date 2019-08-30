@@ -147,6 +147,8 @@ module Azula
             when TokenType::IDENTIFIER
                 if @peek_token.type == TokenType::ASSIGN
                     return self.parse_assign_statement
+                elsif @peek_token.type == TokenType::IDENTIFIER
+                    return self.parse_assign_statement
                 end
             when TokenType::RETURN
                 return self.parse_return_statement
@@ -154,9 +156,6 @@ module Azula
                 return self.parse_function_statement
             when TokenType::STRUCT
                 return self.parse_struct
-            when TokenType::COLON
-                self.next_token
-                return self.parse_assign_statement
             when TokenType::IF
                 return self.parse_if_statement true
             when TokenType::WHILE
