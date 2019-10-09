@@ -12,6 +12,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
+    - name: Install LLVM and Clang
+      run: apt-get update && apt-get install -y crystal clang-8
     - name: Install dependencies
       run: shards install
     - name: Run tests
