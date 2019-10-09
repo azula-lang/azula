@@ -18,8 +18,10 @@ jobs:
       run: curl -sL "https://keybase.io/crystal/pgp_keys.asc" | apt-key add -
     - name: Add source
       run: echo "deb https://dist.crystal-lang.org/apt crystal main" | tee /etc/apt/sources.list.d/crystal.list
+    - name: Update APT
+      run: apt-get update
     - name: Install LLVM and Clang
-      run: apt-get update && apt-get install -y crystal clang-8
+      run: apt-get install -y crystal clang-8
     - name: Install dependencies
       run: shards install
     - name: Run tests
