@@ -22,6 +22,8 @@ jobs:
       run: apt-get update
     - name: Install LLVM and Clang
       run: apt-get install -y crystal clang-8
+    - name: Create links
+      run: ln -s /usr/bin/clang-8 /usr/local/bin/clang && ln -s /usr/bin/llvm-config-8 /usr/local/bin/llvm-config
     - name: Install dependencies
       run: shards install
     - name: Run tests
