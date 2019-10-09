@@ -12,6 +12,12 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
+    - name: Install CURL
+      run: apt-get update && apt-get install -y gnupg2 curl
+    - name: Add Crystal key
+      run: curl -sL "https://keybase.io/crystal/pgp_keys.asc" | apt-key add -
+    - name: Add source
+      run: echo "deb https://dist.crystal-lang.org/apt crystal main" | tee /etc/apt/sources.list.d/crystal.list
     - name: Install LLVM and Clang
       run: apt-get update && apt-get install -y crystal clang-8
     - name: Install dependencies
