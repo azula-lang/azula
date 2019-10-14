@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Program)]
             class Program < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Program)
                     if node.nil?
                         return

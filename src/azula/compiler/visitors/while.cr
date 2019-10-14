@@ -11,7 +11,7 @@ module Azula
             @[CompilerVisitor(node: AST::While)]
             class While < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::While)
                     if node.nil?
                         return

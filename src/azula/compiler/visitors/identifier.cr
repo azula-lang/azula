@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Identifier)]
             class Identifier < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Identifier)
                     if node.nil?
                         return

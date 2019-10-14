@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Block)]
             class Block < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Block)
                     if node.nil?
                         return

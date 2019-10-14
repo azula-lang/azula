@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::If)]
             class If < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::If)
                     if node.nil?
                         return

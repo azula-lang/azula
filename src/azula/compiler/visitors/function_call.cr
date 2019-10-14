@@ -11,7 +11,7 @@ module Azula
             @[CompilerVisitor(node: AST::FunctionCall)]
             class FunctionCall < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::FunctionCall)
                     if node.nil?
                         return

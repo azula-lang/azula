@@ -11,7 +11,7 @@ module Azula
             @[CompilerVisitor(node: AST::Struct)]
             class Struct < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Struct)
                     if node.nil?
                         return
@@ -45,7 +45,7 @@ module Azula
             @[CompilerVisitor(node: AST::StructInitialise)]
             class StructInitialise < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::StructInitialise)
                     if node.nil?
                         return
@@ -73,7 +73,7 @@ module Azula
             @[CompilerVisitor(node: AST::StructAccess)]
             class StructAccess < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::StructAccess)
                     if node.nil?
                         return

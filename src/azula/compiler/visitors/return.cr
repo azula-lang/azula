@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Return)]
             class Return < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Return)
                     if node.nil?
                         return

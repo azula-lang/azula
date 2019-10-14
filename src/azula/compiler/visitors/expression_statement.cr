@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::ExpressionStatement)]
             class ExpressionStatement < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::ExpressionStatement)
                     if node.nil?
                         return

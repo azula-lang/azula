@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Infix)]
             class Infix < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Infix)
                     if node.nil?
                         return

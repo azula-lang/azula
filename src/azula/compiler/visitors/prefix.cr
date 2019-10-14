@@ -10,7 +10,7 @@ module Azula
             @[CompilerVisitor(node: AST::Prefix)]
             class Prefix < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::Prefix)
                     if node.nil?
                         return

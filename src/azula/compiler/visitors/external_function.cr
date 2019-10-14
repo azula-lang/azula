@@ -11,7 +11,7 @@ module Azula
             @[CompilerVisitor(node: AST::ExternFunction)]
             class ExternFunction < Visitor
 
-                def run(compiler : Compiler, node : AST::Node)
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
                     node = node.as?(AST::ExternFunction)
                     if node.nil?
                         return
