@@ -264,7 +264,6 @@ module Azula
                 idents << ident
             end
 
-            puts @current_token.literal
             expect_peek_return ASSIGN
 
             values = self.parse_expression_list TokenType::SEMICOLON
