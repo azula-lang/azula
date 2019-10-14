@@ -2,16 +2,16 @@
 func fizz_buzz(int start, int end): void {
     while(start <= end) {
         if(start % 3 == 0 and start % 5 == 0) {
-            print("FizzBuzz");
+            println("FizzBuzz");
         }
         if(start % 3 == 0 and start % 5 != 0) {
-            print("Fizz");
+            println("Fizz");
         }
         if(start % 5 == 0 and start % 3 != 0) {
-            print("Buzz");
+            println("Buzz");
         }
         if(start % 3 != 0 and start % 5 != 0) {
-            print(start);
+            println(start);
         }
         start = start + 1;
     }

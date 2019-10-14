@@ -8,7 +8,7 @@ func fib(int x): int {
 func main(): void {
     int i = 0;
     while(i < 50) {
-        print("Fibonacci", i, fib(i));
+        println("Fibonacci", i, fib(i));
         i = i + 1;
     }
 }

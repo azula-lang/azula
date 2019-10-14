@@ -1,0 +1,6 @@
+extern func sqrt(float x): float;
+
+func main(): void {
+	float y = sqrt(5.0);
+	println(y);
+}
