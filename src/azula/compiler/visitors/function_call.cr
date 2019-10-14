@@ -27,7 +27,7 @@ module Azula
                         args << val
                     end
 
-                    if node.function_name.ident == "print"
+                    if node.function_name.ident == "println"
                         args.each do |arg|
                             compiler.builder.call compiler.print_funcs[arg.type], arg
                             compiler.builder.call compiler.builtin_printfunc, [compiler.builder.global_string_pointer(" ")]

@@ -124,6 +124,8 @@ module Azula
                 token_type, literal = TokenType::COMMA, @current_char
             when '.'
                 token_type, literal = TokenType::DOT, @current_char
+            when '&'
+                token_type, literal = TokenType::AMPERSAND, @current_char
             when Char::ZERO
                 token_type, literal = TokenType::EOF, @current_char
             else

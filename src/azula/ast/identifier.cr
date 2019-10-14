@@ -36,6 +36,7 @@ module Azula
             @token : Token
             @ident : String
             @type : (Types::Type | String)
+            @pointer_type : (Types::Type | String)? = nil
 
             def initialize(@token, @ident, @type)
             end
@@ -56,6 +57,9 @@ module Azula
             getter ident
             # The type of this identifier.
             getter type
+            # The pointer type if this is a pointer
+            getter pointer_type
+            setter pointer_type
 
         end
     end

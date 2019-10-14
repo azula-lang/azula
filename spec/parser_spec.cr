@@ -405,6 +405,36 @@ describe Azula::Parser do
 
         end
 
+        it "external function definition" do
+
+            input = "
+            extern func function(int x, string y) : (int, bool);
+            "
+
+            l = Azula::Lexer.new input
+            p = Azula::Parser.new l
+
+            program = p.parse_program
+            check_parser_errors p
+
+            program.statements.size.should eq 1
+
+            function = program.statements[0].as?(Azula::AST::ExternFunction)
+            function.nil?.should be_false
+
+            function.not_nil!.parameters.size.should eq 2
+            function.not_nil!.return_types.size.should eq 2
+
+            function.not_nil!.parameters[0].type.should eq Azula::Types::Type::INT
+            function.not_nil!.parameters[0].ident.should eq "x"
+
+            function.not_nil!.parameters[1].type.should eq Azula::Types::Type::STRING
+            function.not_nil!.parameters[1].ident.should eq "y"
+
+            function.not_nil!.return_types[0].should eq Azula::Types::Type::INT
+            function.not_nil!.return_types[1].should eq Azula::Types::Type::BOOL
+        end
+
         it "function call" do 
             input = "
             function(5, \"yes\");

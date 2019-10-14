@@ -15,7 +15,12 @@ module Azula
                     if node.nil?
                         return
                     end
-                    return compiler.types[Types::Type::INT].const_int node.value
+                    case node.size
+                    when 8
+                        return compiler.types[Types::Type::INT8].const_int node.value
+                    else
+                        return compiler.types[Types::Type::INT].const_int node.value
+                    end
                 end
             end
 
@@ -39,15 +44,7 @@ module Azula
                     if node.nil?
                         return
                     end
-                    ptr = compiler.builder.global_string_pointer node.value
-                    str = compiler.context.const_struct [
-                        ptr,
-                        compiler.context.int32.const_int(node.value.bytesize),
-                        compiler.context.int32.const_int(node.value.size),
-                    ]
-                    alloca = compiler.builder.alloca compiler.string_type
-                    compiler.builder.store str, alloca
-                    return alloca
+                    return compiler.create_string node.value
                 end
             end
 

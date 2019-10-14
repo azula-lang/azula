@@ -57,6 +57,7 @@ module Azula
                 @types = {
                     Types::Type::VOID => @context.void,
                     Types::Type::INT => @context.int32,
+                    Types::Type::INT8 => @context.int8,
                     Types::Type::BOOL => @context.int1,
                     Types::Type::FLOAT => @context.double,
                     Types::Type::STRING => @string_type,
@@ -85,6 +86,18 @@ module Azula
                 return visitor.run self, node
             end
 
+            def create_string(value : String) : LLVM::Value?
+                ptr = @builder.global_string_pointer value
+                str = @context.const_struct [
+                    ptr,
+                    @context.int32.const_int(value.bytesize),
+                    @context.int32.const_int(value.size),
+                ]
+                alloca = @builder.alloca @string_type
+                @builder.store str, alloca
+                return alloca
+            end
+
             # Write the LLIR to a file.
             def write_to_file(file : String)
                 @main_module.print_to_file file
@@ -97,9 +110,13 @@ module Azula
                 machine = target.create_target_machine LLVM.default_target_triple
                 machine.emit_obj_to_file @main_module, "#{file}.o"
 
-                system "clang -o #{file} -lstdc++ #{file}.o"
+                system "clang -o #{file} -lstdc++ -static #{file}.o"
 
                 File.delete "#{file}.o"
+            end
+
+            def get_pointer(type : Types::Type)
+                return @types[type].pointer
             end
 
         end

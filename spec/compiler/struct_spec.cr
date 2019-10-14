@@ -27,6 +27,21 @@ describe Azula::Compiler do
             compile_and_run(input).should eq "0.10.0"
         end
 
+        it "int" do
+            input = "
+            struct Test {
+                string s,
+                int num,
+            }
+
+            func main(): void {
+                Test t = Test{\"hi\", 3};
+                print(t.s, t.num);
+            }
+            "
+            compile_and_run(input).should eq "hi 3"
+        end
+
     end
 
 end

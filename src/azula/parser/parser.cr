@@ -154,6 +154,8 @@ module Azula
                 return self.parse_return_statement
             when TokenType::FUNCTION
                 return self.parse_function_statement
+            when TokenType::EXTERN
+                return self.parse_external_function
             when TokenType::STRUCT
                 return self.parse_struct
             when TokenType::IF
@@ -234,7 +236,7 @@ module Azula
             t = @current_token
             idents = [] of (AST::TypedIdentifier | AST::Identifier)
             type = Types::Type.parse? @current_token.literal
-            if @peek_token.type == TokenType::IDENTIFIER
+            if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK
                 ident = parse_typed_identifier
             else
                 ident = parse_identifier
@@ -250,7 +252,7 @@ module Azula
                 self.next_token
                 self.next_token
                 type = Types::Type.parse? @current_token.literal
-                if @peek_token.type == TokenType::IDENTIFIER
+                if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK
                     ident = parse_typed_identifier
                 else
                     ident = parse_identifier
@@ -262,6 +264,7 @@ module Azula
                 idents << ident
             end
 
+            puts @current_token.literal
             expect_peek_return ASSIGN
 
             values = self.parse_expression_list TokenType::SEMICOLON
@@ -276,6 +279,16 @@ module Azula
             type = Types::Type.parse? @current_token.literal
             if type.nil?
                 type = @current_token.literal
+            end
+
+            if @peek_token.type == TokenType::ASTERISK
+                self.next_token
+
+                expect_peek_return IDENTIFIER
+
+                ident = AST::TypedIdentifier.new @current_token, @current_token.literal, Types::Type::POINTER
+                ident.pointer_type = type
+                return ident
             end
 
             expect_peek_return IDENTIFIER
@@ -407,6 +420,30 @@ module Azula
             nil_return body
 
             return AST::Function.new tok, name, params, return_types, body.not_nil!
+        end
+
+        # Parse an external function
+        def parse_external_function : AST::ExternFunction?
+            tok = @current_token
+            self.next_token
+            self.next_token
+            name = AST::Identifier.new @current_token, @current_token.literal
+
+            expect_peek_return LBRACKET
+
+            params = self.parse_function_parameters
+            nil_return params
+
+            expect_peek_return COLON
+
+            self.next_token
+
+            return_types = self.parse_function_return_types
+            nil_return return_types
+
+            expect_peek_return SEMICOLON
+
+            return AST::ExternFunction.new tok, name, params, return_types
         end
 
         # Parse the parameters of a function, returning a list of TypedIdentifiers

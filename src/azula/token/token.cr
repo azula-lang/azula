@@ -32,8 +32,8 @@ module Azula
         AS
         # Used to create a struct
         STRUCT
-        # Used to declare a macro
-        MACRO
+        # Used to declare an external function
+        EXTERN
 
         # True
         TRUE
@@ -54,6 +54,8 @@ module Azula
         SLASH
         # %
         MODULO
+        # Ampersand
+        AMPERSAND
 
         # Equality
         EQ
@@ -130,6 +132,8 @@ module Azula
     # Keyword string to its TokenType
     Keywords = {
         "int" => TokenType::TYPE,
+        "int8" => TokenType::TYPE,
+        "int16" => TokenType::TYPE,
         "bool" => TokenType::TYPE,
         "string" => TokenType::TYPE,
         "float" => TokenType::TYPE,
@@ -139,7 +143,7 @@ module Azula
         "func" => TokenType::FUNCTION,
         "return" => TokenType::RETURN,
 
-        "macro" => TokenType::MACRO,
+        "extern" => TokenType::EXTERN,
         
         "as" => TokenType::AS,
 

@@ -4,6 +4,16 @@ module Azula
 
             # Add the builtin functions
             def add_builtins
+                add_print_funcs
+            end
+
+            # Register builtin function
+            def add_builtin_func(name : String, func : LLVM::Function)
+                @builtin_funcs[name] = func
+            end
+
+            # Register the various print functions
+            def add_print_funcs
                 print_string = @main_module.functions.add("__print_s", [@string_type.pointer], @context.void, true) do |func|
                     entry = func.basic_blocks.append "entry" do | builder |
                         v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
@@ -15,6 +25,12 @@ module Azula
                 print_int = @main_module.functions.add("__print_int", [@context.int32], @context.void, true) do |func|
                     entry = func.basic_blocks.append "entry" do | builder |
                         builder.call @builtin_printfunc, [builder.global_string_pointer("%d"), func.params[0]]
+                        builder.ret
+                    end
+                end
+                print_float = @main_module.functions.add("__print_float", [@context.double], @context.void, true) do |func|
+                    entry = func.basic_blocks.append "entry" do | builder |
+                        builder.call @builtin_printfunc, [builder.global_string_pointer("%f"), func.params[0]]
                         builder.ret
                     end
                 end
@@ -45,14 +61,13 @@ module Azula
 
                 add_builtin_func("__print_int", print_int)
                 print_funcs[context.int32] = print_int
+                print_funcs[context.int8] = print_int
+
+                add_builtin_func("__print_float", print_float)
+                print_funcs[context.double] = print_float
 
                 add_builtin_func("__print_bool", print_bool)
                 print_funcs[context.int1] = print_bool
-            end
-
-            # Register builtin function
-            def add_builtin_func(name : String, func : LLVM::Function)
-                @builtin_funcs[name] = func
             end
 
         end

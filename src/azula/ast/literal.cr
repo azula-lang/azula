@@ -8,6 +8,7 @@ module Azula
         class IntegerLiteral < Expression
 
             @token : Token
+            @size : Int32 = 32
             @value : Int32
 
             def initialize(@token, @value)
@@ -25,6 +26,8 @@ module Azula
 
             # Get the `Token` in this node.
             getter token
+            # Get the size to be created in the compiler, eg. 8, 16.
+            getter size
             # Get the native Crystal `Int32` value of this node.
             getter value
 

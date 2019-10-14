@@ -3,17 +3,24 @@ module Azula
     module Types
         enum Type
             INT
+            INT8
+            INT16
             FLOAT
             STRING
             BOOL
             VOID
             ERROR
+            POINTER
         end
 
         def Types.type_from_string(s : String) : Type?
             case s
             when "int"
                 return Type::INT
+            when "int8"
+                return Type::INT8
+            when "int16"
+                return Type::INT16
             when "float"
                 return Type::FLOAT
             when "string"

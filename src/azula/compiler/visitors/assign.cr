@@ -29,13 +29,29 @@ module Azula
                         compiler.builder.store val.not_nil!.to_unsafe, alloca
                         return
                     end
-                    # Get type of vars to be assigned
-                    assign_type = compiler.types.fetch ident.type, nil
-                    if assign_type.nil?
-                        assign_type = compiler.structs.fetch ident.type, nil
+
+                    assign_type : LLVM::Type? = nil
+                    if ident.type == Types::Type::POINTER
+                        assign_type = compiler.types.fetch ident.pointer_type, nil
                         if assign_type.nil?
-                            return
+                            assign_type = compiler.structs.fetch ident.pointer_type, nil
+                            if assign_type.nil?
+                                return
+                            end
                         end
+                        assign_type = assign_type.pointer
+                    else
+                        # Get type of vars to be assigned
+                        assign_type = compiler.types.fetch ident.type, nil
+                        if assign_type.nil?
+                            assign_type = compiler.structs.fetch ident.type, nil
+                            if assign_type.nil?
+                                return
+                            end
+                        end
+                    end
+                    if assign_type.nil?
+                        return
                     end
                     # Compile value of assign statement
                     val = compiler.compile node.values[0]
