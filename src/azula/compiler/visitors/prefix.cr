@@ -16,6 +16,18 @@ module Azula
                         return
                     end
 
+                    if node.operator == "*"
+                        right = node.right.as?(AST::Identifier)
+                        if right.nil?
+                            return
+                        end
+                        ptr = compiler.vars.fetch right.ident, nil
+                        if ptr.nil?
+                            return
+                        end
+                        return ptr
+                    end
+
                     right = compiler.compile(node.right)
                     if right.nil?
                         return
@@ -26,6 +38,8 @@ module Azula
                         return compiler.builder.mul(right.not_nil!, compiler.context.int32.const_int(-1))
                     when "!"
                         return compiler.builder.not(right.not_nil!)
+                    when "&"
+                        return compiler.builder.load right.not_nil!
                     end
                     
                 end

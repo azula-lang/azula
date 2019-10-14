@@ -33,6 +33,9 @@ module Azula
                         compiler.builder = old
                     end
 
+                    old_loop_cond = compiler.current_loop_cond
+                    compiler.current_loop_cond = loop_cond
+
                     loop_block = compiler.current_func.not_nil!.basic_blocks.append "loop" do |builder|
                         old = compiler.builder
                         compiler.builder = builder
@@ -46,6 +49,8 @@ module Azula
                     end
 
                     old_builder.br loop_cond
+
+                    compiler.current_loop_cond = old_loop_cond
 
                     return
                 end

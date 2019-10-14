@@ -30,6 +30,8 @@ module Azula
             @print_funcs = {} of LLVM::Type=>LLVM::Function
             @builtin_printfunc : LLVM::Function
 
+            @current_loop_cond : LLVM::BasicBlock? = nil
+
             getter context
             getter main_module
             getter builder
@@ -47,6 +49,8 @@ module Azula
             setter builder
             setter current_func
             setter has_return
+            getter current_loop_cond
+            setter current_loop_cond
 
             def initialize
                 @context = LLVM::Context.new

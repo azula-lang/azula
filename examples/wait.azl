@@ -1,0 +1,16 @@
+extern func time(int x): int;
+
+func wait(int seconds): void {
+	int start = time(0);
+	while(time(0) - start < seconds) {
+		continue;
+	}
+}
+
+func main(): void {
+	int seconds = time(0);
+	int i = 0;
+	println("Starting...");
+	wait(5);
+	println("It took", time(0) - seconds, "seconds to run.");
+}

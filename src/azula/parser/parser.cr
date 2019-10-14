@@ -69,6 +69,7 @@ module Azula
         TokenType::LBRACKET => OperatorPrecedence::CALL,
         TokenType::LBRACE => OperatorPrecedence::CALL,
         TokenType::DOT => OperatorPrecedence::ACCESS,
+        TokenType::AMPERSAND => OperatorPrecedence::ACCESS,
     }
 
     class Parser
@@ -98,6 +99,8 @@ module Azula
             register_prefix IDENTIFIER, parse_identifier
             register_prefix NOT, parse_prefix_expression
             register_prefix MINUS, parse_prefix_expression
+            register_prefix ASTERISK, parse_prefix_expression
+            register_prefix AMPERSAND, parse_prefix_expression
 
             register_infix PLUS, parse_infix_expression
             register_infix MINUS, parse_infix_expression
@@ -152,6 +155,8 @@ module Azula
                 end
             when TokenType::RETURN
                 return self.parse_return_statement
+            when TokenType::CONTINUE
+                return self.parse_continue_statement
             when TokenType::FUNCTION
                 return self.parse_function_statement
             when TokenType::EXTERN
@@ -334,6 +339,13 @@ module Azula
             values = self.parse_expression_list TokenType::SEMICOLON
 
             return AST::Return.new tok, values
+        end
+
+        def parse_continue_statement : AST::Continue?
+            tok = @current_token
+
+            expect_peek_return SEMICOLON
+            return AST::Continue.new tok
         end
 
         # Parse an infix expression, eg 5 + 5, 10 == 2

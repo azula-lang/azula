@@ -86,6 +86,8 @@ module Azula
         SWITCH
         # Default statement in switch
         DEFAULT
+        # Continue
+        CONTINUE
 
         # While loop
         WHILE
@@ -142,6 +144,7 @@ module Azula
 
         "func" => TokenType::FUNCTION,
         "return" => TokenType::RETURN,
+        "continue" => TokenType::CONTINUE,
 
         "extern" => TokenType::EXTERN,
         
