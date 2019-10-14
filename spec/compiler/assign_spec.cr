@@ -16,7 +16,7 @@ describe Azula::Compiler do
         end
 
         it "string" do
-            input = wrap_main("string s = \"hi\"; print(s);", "string")
+            input = wrap_main("string s = \"hi\"; println(s);", "string")
             compile_and_run(input).should eq "hi"
         end
 
@@ -43,7 +43,7 @@ describe Azula::Compiler do
                 int z = 5;
                 int x, y = test(z), test(z + 5);
 
-                print(x, y);
+                println(x, y);
             }
             "
             compile_and_run(input).should eq "5 10"

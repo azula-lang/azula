@@ -15,7 +15,7 @@ describe Azula::Compiler do
             }
 
             func print_api(API api): void {
-                print(api.version);
+                println(api.version);
             }
 
             func main(): void {

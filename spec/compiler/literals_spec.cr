@@ -16,7 +16,7 @@ describe Azula::Compiler do
         end
 
         it "string" do
-            input = wrap_main("string s = \"hi\"; print(s);", "void")
+            input = wrap_main("string s = \"hi\"; println(s);", "void")
             compile_and_run(input).should eq "hi"
         end
 
