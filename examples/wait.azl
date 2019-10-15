@@ -3,7 +3,6 @@ extern func time(int x): int;
 
 func main(): void {
 	int seconds = time(0);
-	int i = 0;
 	println("Starting...");
 	sleep(5);
 	println(time(0) - seconds, "seconds to run.");
