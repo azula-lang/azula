@@ -23,6 +23,17 @@ module Azula
                     # Get the arguments for the function
                     args = [] of LLVM::Type
                     node.parameters.each do |param|
+                        if param.type == Types::Type::POINTER
+                            arg_type = compiler.types.fetch param.pointer_type, nil
+                            if arg_type.nil?
+                                arg_type = compiler.structs.fetch param.pointer_type, nil
+                                if arg_type.nil?
+                                    next
+                                end
+                            end
+                            args << arg_type.pointer
+                            next
+                        end
                         arg_type = compiler.types.fetch param.type, nil
                         if arg_type.nil?
                             arg_type = compiler.structs.fetch param.type, nil

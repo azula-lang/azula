@@ -4,7 +4,50 @@ module Azula
 
             # Add the builtin functions
             def add_builtins
+                strlen = @main_module.functions.add("strlen", [@context.int8.pointer], @context.int32, true)
+                add_builtin_func("strlen", strlen)
+                scanf = @main_module.functions.add("scanf", [@context.int8.pointer], @context.void, true)
+                add_builtin_func("scanf", scanf)
                 add_print_funcs
+                input = @main_module.functions.add("input", [@string_type.pointer], @context.int8.pointer) do |func|
+                    entry = func.basic_blocks.append "entry" do |builder|
+                        store = builder.alloca @context.int8.array(10)
+                        ptr = builder.gep store, @context.int32.const_int(0), @context.int32.const_int(0)
+                        builder.call scanf, [builder.global_string_pointer("%s"), ptr]
+                        builder.ret store
+                    end
+                end
+                string_cstring = @main_module.functions.add("cstring_conv", [@string_type.pointer], @context.int8.pointer, true) do |func|
+                    entry = func.basic_blocks.append "entry" do | builder |
+                        v = builder.gep func.params[0], @context.int32.const_int(0), @context.int32.const_int(0)
+                        val = builder.load v
+                        builder.ret val
+                    end
+                end
+                add_builtin_func("cstring_conv", string_cstring)
+
+                # cstring_string = @main_module.functions.add("string_conv", [@context.int8.pointer], @string_type.pointer, true) do |func|
+                #     entry = func.basic_blocks.append "entry" do | builder |
+                #         old_builder = @builder
+                #         @builder = builder
+                #         alloca = @builder.alloca @context.int8.pointer
+                #         param = func.params[0]
+                #         val = @builder.call strlen, [param]
+                #         # val = @context.int32.const_int(5)
+                #         @builder.store param, alloca
+                #         str = @context.const_struct [
+                #             alloca,
+                #             val,
+                #             val,
+                #         ]
+                #         alloca = @builder.alloca @string_type
+                #         @builder.store str, alloca
+                #         @builder.ret alloca
+                #         @builder = old_builder
+                #     end
+                # end
+                # add_builtin_func("string_conv", cstring_string)
+
             end
 
             # Register builtin function

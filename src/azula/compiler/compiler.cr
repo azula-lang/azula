@@ -65,6 +65,7 @@ module Azula
                     Types::Type::BOOL => @context.int1,
                     Types::Type::FLOAT => @context.double,
                     Types::Type::STRING => @string_type,
+                    Types::Type::CSTRING => @context.int8.pointer,
                 }
 
                 @builtin_printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)

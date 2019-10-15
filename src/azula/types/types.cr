@@ -7,6 +7,7 @@ module Azula
             INT16
             FLOAT
             STRING
+            CSTRING
             BOOL
             VOID
             ERROR
@@ -25,6 +26,8 @@ module Azula
                 return Type::FLOAT
             when "string"
                 return Type::STRING
+            when "cstring"
+                return Type::CSTRING
             when "bool"
                 return Type::BOOL
             when "void"

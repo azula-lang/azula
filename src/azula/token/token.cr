@@ -138,6 +138,7 @@ module Azula
         "int16" => TokenType::TYPE,
         "bool" => TokenType::TYPE,
         "string" => TokenType::TYPE,
+        "cstring" => TokenType::TYPE,
         "float" => TokenType::TYPE,
         "error" => TokenType::TYPE,
         "void" => TokenType::TYPE,
