@@ -52,7 +52,7 @@ func fib(int x): int {
 }
 
 func main(): void {
-    print(fib(15));
+    println(fib(15));
 }
 ```
 
