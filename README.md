@@ -7,8 +7,6 @@ Azula is a strongly-typed compiled language, using an LLVM backend, with the fol
 
 [Documentation](https://azula-lang.github.io/azula/#/)
 
--- Very early stages of development --
-
 [Discord](https://discord.gg/Hkx8XnB)
 
 ### Origin
