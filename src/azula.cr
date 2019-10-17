@@ -4,6 +4,7 @@ require "./azula/types/"
 require "./azula/compiler/"
 require "./azula/errors/"
 
+require "option_parser"
 require "colorize"
 
 # Azula is a strongly-typed compiled language, using an LLVM backend
@@ -12,6 +13,13 @@ end
 
 VERSION = "0.3.0"
 PROMPT = ">> "
+
+type_check = true
+
+OptionParser.parse do |parser|
+    parser.banner = "Usage: azula run [arguments]"
+    parser.on("-nt", "--no-typecheck", "Disable type checking") { type_check = false }
+  end
 
 puts "#{"Azula".colorize(Colorize::ColorRGB.new(253, 117, 155))}" + " Version #{VERSION}\n\n"
 
@@ -36,15 +44,15 @@ if !Azula::ErrorManager.can_compile
     exit
 end
 
-# t = Azula::Types::Typechecker.new
-# puts t.check smt
+if type_check
+    t = Azula::Types::Typechecker.new
+    t.check smt
+end
 
-# if !t.errors.empty?
-#   t.errors.each do |error|
-#     puts error
-#   end
-#   exit
-# end
+if !Azula::ErrorManager.can_compile
+    Azula::ErrorManager.print_errors
+    exit
+end
 
 c = Azula::Compiler::Compiler.new
 c.register_visitors

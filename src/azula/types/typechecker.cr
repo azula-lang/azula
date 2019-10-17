@@ -1,5 +1,6 @@
 require "../ast/*"
 require "../token"
+require "../errors/*"
 
 macro return_if_nil(val)
     if {{val}}.nil?
@@ -21,7 +22,6 @@ module Azula
             @structs : Hash(String, Hash(String, (Type | String)))
             @function_returns : Hash(String, Array(Type | String))
             @function_args : Hash(String, Array(Type | String))
-            @errors : Array(String)
 
             getter errors
 
@@ -30,14 +30,6 @@ module Azula
                 @structs = {} of String=>Hash(String, (Type | String))
                 @function_returns = {} of String=>Array(Type | String)
                 @function_args = {} of String=>Array(Type | String)
-                @errors = [] of String
-
-                v = [] of (Type | String)
-                v << Type::VOID
-                @function_returns["print"] = v
-                a = [] of (Type | String)
-                a << Type::STRING
-                @function_args["print"] = a
             end
 
             def check(node : AST::Node) Array(Type | String)?
@@ -58,7 +50,7 @@ module Azula
                     node.statements.each do |stmt|
                         val = self.check stmt
                         return_if_nil val
-                        if val.size == 0
+                        if val.size == 0 || val[0] == Type::VOID
                             next
                         end
                         return val
@@ -130,28 +122,24 @@ module Azula
                         return_if_nil v
                         val_types = val_types + v
                     end
-                    ident_types = [] of (Type | String)
-                    node.idents.each do |val|
-                        v = self.check val
-                        return_if_nil v
-                        ident_types = ident_types + v
-                    end
-                    if val_types.size != ident_types.size
-                        self.add_error "incorrect number of values in assign statement", node.token
-                        return [Type::VOID]
-                    end
+                    ident_type = self.check(node.idents[0]).not_nil![0]
                     val_types.size.times do |i|
-                        if val_types[i] != ident_types[i]
-                            self.add_error "incorrect value in assign statement, trying to assign #{val_types[i]} to variable of type #{ident_types[i]}", node.token
+                        if val_types[i] != ident_type
+                            self.add_error "incorrect value in assign statement, trying to assign #{val_types[i]} to variable of type #{ident_type}", node.token
                             return [Type::VOID]
                         end
                     end
                     node.idents.each do |val|
-                        val = val.as?(AST::TypedIdentifier)
-                        if val.nil?
+                        v = val.as?(AST::TypedIdentifier)
+                        if v.nil?
+                            v = val.as?(AST::Identifier)
+                            if v.nil?
+                                self.add_error "not an identifier", node.token
+                            end
+                            @variables[v.not_nil!.ident] = ident_type
                             next
                         end
-                        @variables[val.ident] = val.type 
+                        @variables[v.ident] = ident_type
                     end
                     return [Type::VOID]
                 when .is_a?(AST::Return)
@@ -180,6 +168,8 @@ module Azula
                     end
                     @function_args[node.function_name.ident] = params
 
+                    @function_returns[node.function_name.ident] = node.return_types
+
                     body_return = self.check node.body
                     return_if_nil body_return
 
@@ -195,13 +185,34 @@ module Azula
                         end
                     end
 
+                    @variables = old_vars
+                    return [Type::VOID]
+                when .is_a?(AST::ExternFunction)
+                    convert_and_check_nil ExternFunction
+
+                    old_vars = @variables
+                    params = [] of (Type | String)
+                    node.parameters.each do |param|
+                        type = self.check param
+                        return_if_nil type
+                        if !self.is_valid_type type[0]
+                            self.add_error "undefined struct #{type[0]}", node.token
+                            return
+                        end
+                        params << type[0]
+                        @variables[param.ident] = type[0]
+                    end
+                    @function_args[node.function_name.ident] = params
+
                     @function_returns[node.function_name.ident] = node.return_types
 
-                    @variables = old_vars
                     return [Type::VOID]
                 when .is_a?(AST::FunctionCall)
                     convert_and_check_nil FunctionCall
                     name = node.function_name.ident
+                    if name == "println"
+                        return [Type::VOID]
+                    end
                     str = @function_returns.fetch name, nil
                     if str.nil?
                         self.add_error "undefined function #{name}", node.token
@@ -234,13 +245,21 @@ module Azula
                     end
 
                     return str
+                when .is_a?(AST::Infix)
+                    convert_and_check_nil Infix
+                    case node.operator
+                    when "*", "+", "-", "/", "%"
+                        return self.check node.left
+                    when "==", "!=", "or", "and", "<=", ">="
+                        return [Type::BOOL]
+                    end
                 else
                     return [Type::VOID]
                 end
             end
 
             def add_error(s : String, token : Token)
-                @errors << "#{s} (file #{token.file}, line #{token.linenumber}, char #{token.charnumber})"
+                ErrorManager.add_error Error.new "#{s}", token.file, token.linenumber, token.charnumber
             end
 
             def is_valid_type(s : (String | Type))

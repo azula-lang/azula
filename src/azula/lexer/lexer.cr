@@ -134,11 +134,13 @@ module Azula
                     type = Azula::Keywords.fetch ident, TokenType::IDENTIFIER
                     token_type, literal = type, ident
                     read = false
+                    char_num = char_num - 1
                 elsif @current_char.number?
                     num = read_number
                     token_type, literal = TokenType::NUMBER, num
                     read = false
                 else
+                    ErrorManager.add_error Error.new "illegal token", @file, line_num, char_num-1
                     token_type, literal = TokenType::ILLEGAL, @current_char
                 end
             end

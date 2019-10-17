@@ -215,7 +215,7 @@ module Azula
                 self.next_token
                 return true
             end
-            self.add_error "expected next token to be #{t}, got #{@peek_token.type} instead"
+            ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @peek_token.file, @peek_token.linenumber, @peek_token.charnumber
             return false
         end
 

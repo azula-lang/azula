@@ -59,7 +59,12 @@ module Azula
                         ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type}'.", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
+
                     # Compile value of assign statement
+                    if node.values.size <= 0
+                        ErrorManager.add_error Error.new "incorrect number of values.", node.token.file, node.token.linenumber, node.token.charnumber
+                        return
+                    end
                     val = compiler.compile node.values[0]
                     if val.nil?
                         return
