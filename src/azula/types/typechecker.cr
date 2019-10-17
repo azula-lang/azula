@@ -30,6 +30,9 @@ module Azula
                 @structs = {} of String=>Hash(String, (Type | String))
                 @function_returns = {} of String=>Array(Type | String)
                 @function_args = {} of String=>Array(Type | String)
+
+                @function_returns["cstring_conv"] = [] of (Type | String) << Type::CSTRING
+                @function_args["cstring_conv"] = [] of (Type | String) << Type::STRING
             end
 
             def check(node : AST::Node) Array(Type | String)?

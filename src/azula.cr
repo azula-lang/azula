@@ -23,11 +23,16 @@ OptionParser.parse do |parser|
 
 puts "#{"Azula".colorize(Colorize::ColorRGB.new(253, 117, 155))}" + " Version #{VERSION}\n"
 
-if ARGV.size != 2
+if ARGV.size == 0
     puts "Incorrect number of arguments."
     exit
 end
 todo = ARGV[0]
+
+if todo == "version"
+    exit
+end
+
 file = ARGV[1]
 content = File.read file
 
