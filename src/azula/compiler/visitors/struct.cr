@@ -2,6 +2,7 @@ require "./visitor"
 require "../../ast/*"
 require "../compiler"
 require "llvm"
+require "../../errors/*"
 
 module Azula
     module Compiler
@@ -27,6 +28,7 @@ module Azula
                         else
                             struc = compiler.structs.fetch field.type, nil
                             if struc.nil?
+                                ErrorManager.add_error Error.new "could not find type #{field.type}", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                             vars << struc

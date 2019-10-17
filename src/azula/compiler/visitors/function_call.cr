@@ -2,6 +2,7 @@ require "./visitor"
 require "../../ast/*"
 require "../compiler"
 require "llvm"
+require "../../errors/*"
 
 module Azula
     module Compiler
@@ -22,7 +23,8 @@ module Azula
                     node.arguments.each do |arg|
                         val = compiler.compile arg
                         if val.nil?
-                            next
+                            ErrorManager.add_error Error.new "could not compile value", node.token.file, node.token.linenumber, node.token.charnumber
+                            return
                         end
                         args << val
                     end

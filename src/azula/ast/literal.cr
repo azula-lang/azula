@@ -28,6 +28,7 @@ module Azula
             getter token
             # Get the size to be created in the compiler, eg. 8, 16.
             getter size
+            setter size
             # Get the native Crystal `Int32` value of this node.
             getter value
 
@@ -108,6 +109,29 @@ module Azula
             getter token
             # Get the native Crystal `Float32` value of this node.
             getter value
+
+        end
+
+        # A literal null
+        class NullLiteral < Expression
+
+            @token : Token
+
+            def initialize(@token)
+            end
+
+            # The literal token representation of this node.
+            def token_literal : String
+                return @token.literal
+            end
+
+            # The literal string representation of this node.
+            def to_string : String
+                return "#{@token.literal}"
+            end
+
+            # Get the `Token` in this node.
+            getter token
 
         end
     end

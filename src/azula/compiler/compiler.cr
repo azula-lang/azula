@@ -3,6 +3,7 @@ require "../ast/*"
 require "llvm"
 require "../types"
 require "./builtins"
+require "../errors/*"
 
 module Azula
     module Compiler
@@ -62,6 +63,7 @@ module Azula
                     Types::Type::VOID => @context.void,
                     Types::Type::INT => @context.int32,
                     Types::Type::INT8 => @context.int8,
+                    Types::Type::INT64 => @context.int64,
                     Types::Type::BOOL => @context.int1,
                     Types::Type::FLOAT => @context.double,
                     Types::Type::STRING => @string_type,
@@ -84,8 +86,10 @@ module Azula
             def compile(node : AST::Node) : LLVM::Value?
                 visitor = @visitors.fetch node.class, nil
                 if visitor.nil?
-                    puts node
-                    puts "unknown node"
+                    file = "unknown"
+                    linenumber = 0
+                    colnumber = 0
+                    ErrorManager.add_error Error.new "unknown node found #{node}", file, linenumber, colnumber
                     return
                 end
                 return visitor.run self, node

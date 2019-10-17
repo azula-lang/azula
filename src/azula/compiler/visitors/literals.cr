@@ -18,6 +18,8 @@ module Azula
                     case node.size
                     when 8
                         return compiler.types[Types::Type::INT8].const_int node.value
+                    when 16
+                        return compiler.types[Types::Type::INT64].const_int node.value
                     else
                         return compiler.types[Types::Type::INT].const_int node.value
                     end
@@ -57,6 +59,18 @@ module Azula
                         return
                     end
                     return compiler.types[Types::Type::BOOL].const_int (node.value ? 1 : 0)
+                end
+            end
+
+            # Visit a Null and return the Value.
+            @[CompilerVisitor(node: AST::NullLiteral)]
+            class NullLiteral < Visitor
+                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
+                    node = node.as?(AST::NullLiteral)
+                    if node.nil?
+                        return
+                    end
+                    return compiler.context.void_pointer.null
                 end
             end
 

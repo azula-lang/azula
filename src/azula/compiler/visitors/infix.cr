@@ -31,6 +31,12 @@ module Azula
                         return compiler.builder.add(left, right)
                     when "-"
                         return compiler.builder.sub(left, right)
+                    when "*"
+                        case left.type
+                        when compiler.context.double
+                            return compiler.builder.fmul(left, right)
+                        end
+                        return compiler.builder.mul(left, right)
                     when "=="
                         return compiler.builder.icmp(LLVM::IntPredicate::EQ, left, right)
                     when "!="

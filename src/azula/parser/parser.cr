@@ -2,6 +2,7 @@ require "../ast/*"
 require "../token"
 require "../lexer"
 require "../types/*"
+require "../errors/*"
 
 # Add a prefix handler
 macro register_prefix(token_type, method_name)
@@ -92,6 +93,7 @@ module Azula
             @prefix_funcs = {} of TokenType => Proc(AST::Expression?)
 
             register_prefix NUMBER, parse_number_literal
+            register_prefix NULL, parse_null_literal
             register_prefix STRING, parse_string_literal
             register_prefix TRUE, parse_boolean_literal
             register_prefix FALSE, parse_boolean_literal
@@ -174,6 +176,9 @@ module Azula
             else
                 return self.parse_expression_statement
             end
+
+            ErrorManager.add_error(Error.new "unknown token " + @current_token.literal, @current_token.file, @current_token.linenumber, @current_token.charnumber)
+            return nil
         end
 
         # Parse a block of statements
@@ -218,7 +223,7 @@ module Azula
         def parse_expression(precedence : OperatorPrecedence = OperatorPrecedence::LOWEST, close : TokenType = TokenType::SEMICOLON) : AST::Expression?
             prefix = @prefix_funcs.fetch @current_token.type, nil
             if prefix.nil?
-                self.add_error "no prefix function for #{@current_token.type}"
+                self.add_error "token #{@current_token.type} in wrong position, could not parse"
                 return
             end
 
@@ -273,6 +278,16 @@ module Azula
 
             values = self.parse_expression_list TokenType::SEMICOLON
             nil_return values
+
+            if type == Types::Type::INT64
+                values.size.times do |i|
+                    (values[i].as(AST::IntegerLiteral)).size = 64
+                end
+            elsif type == Types::Type::INT16
+                values.size.times do |i|
+                    (values[i].as(AST::IntegerLiteral)).size = 16
+                end
+            end
 
             return AST::Assign.new t, idents, values.not_nil!
         end
@@ -332,11 +347,20 @@ module Azula
             return AST::BooleanLiteral.new @current_token, @current_token.type == TokenType::TRUE
         end
 
+        # Parse a null literal
+        def parse_null_literal : AST::NullLiteral?
+            return AST::NullLiteral.new @current_token
+        end
+
         # Parse a return statement, for returning a value from a function
         def parse_return_statement : AST::Return?
             tok = @current_token
 
             values = self.parse_expression_list TokenType::SEMICOLON
+            if values.nil?
+                self.add_error "error parsing return expression"
+                return
+            end
 
             return AST::Return.new tok, values
         end
@@ -397,6 +421,7 @@ module Azula
             end
 
             if !expect_peek last
+                return
             end
 
             return exps
@@ -520,6 +545,10 @@ module Azula
             nil_return function
             tok = @current_token
             args = self.parse_expression_list TokenType::RBRACKET
+            if args.nil?
+                self.add_error "invalid expressions in function call"
+                return
+            end
             nil_return args
 
             return AST::FunctionCall.new tok, function.as(AST::Identifier), args
@@ -547,7 +576,10 @@ module Azula
             while @peek_token.type != TokenType::RBRACE
                 self.next_token
                 exp = self.parse_typed_identifier
-                nil_return exp
+                if exp.nil?
+                    self.add_error "invalid typed identifier declaration"
+                    return
+                end
                 fields << exp.not_nil!
                 if @peek_token.type != TokenType::COMMA
                     break
@@ -566,7 +598,10 @@ module Azula
             nil_return struct_ident
             tok = @current_token
             args = self.parse_expression_list TokenType::RBRACE
-            nil_return args
+            if args.nil?
+                self.add_error "invalid struct fields"
+                return
+            end
 
             return AST::StructInitialise.new tok, struct_ident, args
         end
@@ -576,11 +611,14 @@ module Azula
             tok = @current_token
             expect_peek_return LBRACKET
             self.next_token
+            
+            # Parse if condition
             exp = self.parse_expression OperatorPrecedence::LOWEST, TokenType::RBRACKET
             if exp.nil?
-                self.add_error "invalid condition"
+                self.add_error "invalid if condition"
+                return
             end
-            nil_return exp
+
             expect_peek_return RBRACKET
             expect_peek_return LBRACE
             cond = self.parse_block_statement
@@ -649,7 +687,7 @@ module Azula
 
         # Add an error to the errors list
         def add_error(error : String)
-            @errors << "#{error} (file #{@current_token.file}, line #{@current_token.linenumber}, char #{@current_token.charnumber})"
+            ErrorManager.add_error Error.new error, @current_token.file, @current_token.linenumber, @current_token.charnumber
         end
 
     end

@@ -136,6 +136,7 @@ module Azula
         "int" => TokenType::TYPE,
         "int8" => TokenType::TYPE,
         "int16" => TokenType::TYPE,
+        "int64" => TokenType::TYPE, 
         "bool" => TokenType::TYPE,
         "string" => TokenType::TYPE,
         "cstring" => TokenType::TYPE,

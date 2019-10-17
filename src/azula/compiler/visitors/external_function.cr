@@ -2,6 +2,7 @@ require "./visitor"
 require "../../ast/*"
 require "../compiler"
 require "llvm"
+require "../../errors/*"
 
 module Azula
     module Compiler
@@ -28,7 +29,8 @@ module Azula
                             if arg_type.nil?
                                 arg_type = compiler.structs.fetch param.pointer_type, nil
                                 if arg_type.nil?
-                                    next
+                                    ErrorManager.add_error Error.new "could not find type #{param.pointer_type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                    return
                                 end
                             end
                             args << arg_type.pointer
@@ -38,7 +40,8 @@ module Azula
                         if arg_type.nil?
                             arg_type = compiler.structs.fetch param.type, nil
                             if arg_type.nil?
-                                next
+                                ErrorManager.add_error Error.new "could not find type #{param.type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                return
                             end
                         end
                         args << arg_type
@@ -49,6 +52,7 @@ module Azula
                     if return_type.nil?
                         return_type = compiler.structs.fetch node.return_types[0], nil
                         if return_type.nil?
+                            ErrorManager.add_error Error.new "could not find type #{node.return_types[0]}", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
                     end

@@ -65,9 +65,9 @@ module Azula
                         builder.ret
                     end
                 end
-                print_int = @main_module.functions.add("__print_int", [@context.int32], @context.void, true) do |func|
+                print_int = @main_module.functions.add("__print_int", [@context.int64], @context.void, true) do |func|
                     entry = func.basic_blocks.append "entry" do | builder |
-                        builder.call @builtin_printfunc, [builder.global_string_pointer("%d"), func.params[0]]
+                        builder.call @builtin_printfunc, [builder.global_string_pointer("%llu"), func.params[0]]
                         builder.ret
                     end
                 end
@@ -105,6 +105,7 @@ module Azula
                 add_builtin_func("__print_int", print_int)
                 print_funcs[context.int32] = print_int
                 print_funcs[context.int8] = print_int
+                print_funcs[context.int64] = print_int
 
                 add_builtin_func("__print_float", print_float)
                 print_funcs[context.double] = print_float

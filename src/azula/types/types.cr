@@ -5,6 +5,7 @@ module Azula
             INT
             INT8
             INT16
+            INT64
             FLOAT
             STRING
             CSTRING
@@ -22,6 +23,8 @@ module Azula
                 return Type::INT8
             when "int16"
                 return Type::INT16
+            when "int64"
+                return Type::INT64
             when "float"
                 return Type::FLOAT
             when "string"

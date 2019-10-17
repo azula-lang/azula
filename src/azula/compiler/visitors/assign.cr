@@ -1,6 +1,7 @@
 require "./visitor"
 require "../../ast/*"
 require "../compiler"
+require "../../errors/*"
 
 module Azula
     module Compiler
@@ -20,10 +21,12 @@ module Azula
                         ident = node.idents[0].as(AST::Identifier)
                         alloca = compiler.vars.fetch ident.ident, nil
                         if alloca.nil?
+                            ErrorManager.add_error Error.new "attempted to read a variable that doesn't exist", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
                         val = compiler.compile node.values[0]
                         if val.nil?
+                            ErrorManager.add_error Error.new "couldn't compile value of assign", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
                         compiler.builder.store val.not_nil!.to_unsafe, alloca
@@ -36,6 +39,7 @@ module Azula
                         if assign_type.nil?
                             assign_type = compiler.structs.fetch ident.pointer_type, nil
                             if assign_type.nil?
+                                ErrorManager.add_error Error.new "could not find type '#{ident.pointer_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end
@@ -46,15 +50,21 @@ module Azula
                         if assign_type.nil?
                             assign_type = compiler.structs.fetch ident.type, nil
                             if assign_type.nil?
+                                ErrorManager.add_error Error.new "could not find type '#{ident.type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end
                     end
                     if assign_type.nil?
+                        ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type}'.", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
                     # Compile value of assign statement
                     val = compiler.compile node.values[0]
+                    if val.nil?
+                        return
+                    end
+
                     # Create allocation for variable
                     ptr = compiler.builder.alloca assign_type, ident.ident
                     compiler.vars[ident.ident] = ptr

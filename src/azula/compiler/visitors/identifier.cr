@@ -1,6 +1,7 @@
 require "./visitor"
 require "../../ast/*"
 require "../compiler"
+require "../../errors/*"
 
 module Azula
     module Compiler
@@ -17,6 +18,7 @@ module Azula
                     end
                     ptr = compiler.vars.fetch node.ident, nil
                     if ptr.nil?
+                        ErrorManager.add_error Error.new "variable not defined '#{node.ident}'", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
                     return compiler.builder.load ptr
