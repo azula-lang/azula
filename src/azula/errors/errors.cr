@@ -15,11 +15,11 @@ module Azula
         end
 
         def self.print_errors
-            puts "#{"COMPILATION ERRORS".colorize(:red)}"
+            puts "\n#{"COMPILATION ERRORS".colorize(:red)}"
             @@Errors.each do |e|
                 puts "#{"ERROR".colorize(:red)} #{e.content} \nFile #{e.filename.colorize(:blue)} (line #{e.line}, character #{e.col})\n"
                 puts "#{@@Code[e.line]}"
-                puts "#{(" " * e.col)}#{"^".colorize(:red)}"
+                puts "#{(" " * (e.col - 1))}#{"^".colorize(:red)}"
             end
         end
 

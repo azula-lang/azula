@@ -215,7 +215,11 @@ module Azula
                 self.next_token
                 return true
             end
-            ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @peek_token.file, @peek_token.linenumber, @peek_token.charnumber
+            if t == TokenType::SEMICOLON
+                ErrorManager.add_error Error.new "expected semicolon", @current_token.file, @current_token.linenumber, @current_token.charnumber
+                return false
+            end
+            ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @current_token.file, @current_token.linenumber, @current_token.charnumber
             return false
         end
 

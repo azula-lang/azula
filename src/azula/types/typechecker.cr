@@ -57,6 +57,17 @@ module Azula
                     end
                     return [Type::VOID]
                 when .is_a?(AST::IntegerLiteral)
+                    convert_and_check_nil IntegerLiteral
+                    case node.size
+                    when 8
+                        return [Type::INT8]
+                    when 16
+                        return [Type::INT16]
+                    when 32
+                        return [Type::INT]
+                    when 64
+                        return [Type::INT64]
+                    end
                     return [Type::INT]
                 when .is_a?(AST::StringLiteral)
                     return [Type::STRING]
@@ -124,7 +135,7 @@ module Azula
                     end
                     ident_type = self.check(node.idents[0]).not_nil![0]
                     val_types.size.times do |i|
-                        if val_types[i] != ident_type
+                        if !compare_type val_types[i], ident_type
                             self.add_error "incorrect value in assign statement, trying to assign #{val_types[i]} to variable of type #{ident_type}", node.token
                             return [Type::VOID]
                         end
@@ -179,7 +190,7 @@ module Azula
                     end
 
                     body_return.size.times do |i|
-                        if body_return[i] != node.return_types[i]
+                        if !compare_type body_return[i], node.return_types[i]
                             self.add_error "cannot return #{body_return[i]}, requires #{node.return_types[i]}", node.token
                             return
                         end
@@ -269,6 +280,22 @@ module Azula
                     return !g.nil?
                 end
                 return true
+            end
+
+            def compare_type(t : (Type | String), t1 : (Type | String)) : Bool
+                if t == t1
+                    return true
+                end
+
+                if t == Type::INT || t1 == Type::INT
+                    return is_int(t) && is_int(t1)
+                end
+
+                return false
+            end
+
+            def is_int(t : (Type | String)) : Bool
+                return t == Type::INT8 || t == Type::INT16 || t == Type::INT || t == Type::INT64
             end
 
         end
