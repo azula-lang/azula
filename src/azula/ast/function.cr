@@ -12,10 +12,10 @@ module Azula
             @token : Token
             @function_name : Identifier
             @parameters : Array(TypedIdentifier)
-            @return_types : Array(Types::Type | String)
+            @return_type : Types::Type
             @body : Block
 
-            def initialize(@token, @function_name, @parameters, @return_types, @body)
+            def initialize(@token, @function_name, @parameters, @return_type, @body)
             end
 
             # The literal token representation of this node.
@@ -29,12 +29,7 @@ module Azula
                 @parameters.each do |param|
                     s += param.to_string + ","
                 end
-                s += ") : ("
-                @return_types.each do |rt|
-                    s += "#{rt.to_s.downcase}, "
-                end
-                s = s[0, s.size-2]
-                s += ") {\n#{@body.to_string}}"
+                s += ") : #{return_type.main_type} {\n#{@body.to_string}}"
                 return s
             end
 
@@ -44,8 +39,8 @@ module Azula
             getter function_name
             # The parameters to be passed to this function, an array of `Expression`.
             getter parameters
-            # The return types of this function, as an array of `TypedIdentifier`.
-            getter return_types
+            # The return type of this function, as a `Type`.
+            getter return_type
             # The body of the function, to be executed when the function is called.
             getter body
 

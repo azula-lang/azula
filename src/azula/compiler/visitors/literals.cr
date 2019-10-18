@@ -17,11 +17,11 @@ module Azula
                     end
                     case node.size
                     when 8
-                        return compiler.types[Types::Type::INT8].const_int node.value
+                        return compiler.types[Types::TypeEnum::INT8].const_int node.value
                     when 16
-                        return compiler.types[Types::Type::INT64].const_int node.value
+                        return compiler.types[Types::TypeEnum::INT64].const_int node.value
                     else
-                        return compiler.types[Types::Type::INT].const_int node.value
+                        return compiler.types[Types::TypeEnum::INT].const_int node.value
                     end
                 end
             end
@@ -34,7 +34,7 @@ module Azula
                     if node.nil?
                         return
                     end
-                    return compiler.types[Types::Type::FLOAT].const_double node.value.to_f64
+                    return compiler.types[Types::TypeEnum::FLOAT].const_double node.value.to_f64
                 end
             end
 
@@ -58,7 +58,7 @@ module Azula
                     if node.nil?
                         return
                     end
-                    return compiler.types[Types::Type::BOOL].const_int (node.value ? 1 : 0)
+                    return compiler.types[Types::TypeEnum::BOOL].const_int (node.value ? 1 : 0)
                 end
             end
 

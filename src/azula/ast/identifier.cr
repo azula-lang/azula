@@ -35,8 +35,7 @@ module Azula
 
             @token : Token
             @ident : String
-            @type : (Types::Type | String)
-            @pointer_type : (Types::Type | String)? = nil
+            @type : Types::Type
 
             def initialize(@token, @ident, @type)
             end
@@ -48,7 +47,7 @@ module Azula
 
             # The literal string representation of this node.
             def to_string : String
-                return "#{@type.to_s.downcase} #{@ident}"
+                return "#{@type.main_type.to_s.downcase} #{@ident}"
             end
 
             # The literal string representation of this node.
@@ -57,9 +56,6 @@ module Azula
             getter ident
             # The type of this identifier.
             getter type
-            # The pointer type if this is a pointer
-            getter pointer_type
-            setter pointer_type
 
         end
     end
