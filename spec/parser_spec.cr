@@ -370,7 +370,7 @@ describe Azula::Parser do
         it "function definition" do
 
             input = "
-            func function(int x, string y) : (int, bool) {
+            func function(int x, string y) : bool {
                 5;
             }
             "
@@ -387,16 +387,14 @@ describe Azula::Parser do
             function.nil?.should be_false
 
             function.not_nil!.parameters.size.should eq 2
-            function.not_nil!.return_types.size.should eq 2
 
-            function.not_nil!.parameters[0].type.should eq Azula::Types::Type::INT
+            function.not_nil!.parameters[0].type.main_type.should eq Azula::Types::TypeEnum::INT
             function.not_nil!.parameters[0].ident.should eq "x"
 
-            function.not_nil!.parameters[1].type.should eq Azula::Types::Type::STRING
+            function.not_nil!.parameters[1].type.main_type.should eq Azula::Types::TypeEnum::STRING
             function.not_nil!.parameters[1].ident.should eq "y"
 
-            function.not_nil!.return_types[0].should eq Azula::Types::Type::INT
-            function.not_nil!.return_types[1].should eq Azula::Types::Type::BOOL
+            function.not_nil!.return_type.main_type.should eq Azula::Types::TypeEnum::BOOL
 
             body = function.not_nil!.body.statements[0].as?(Azula::AST::ExpressionStatement)
             body.nil?.should be_false
@@ -408,7 +406,7 @@ describe Azula::Parser do
         it "external function definition" do
 
             input = "
-            extern func function(int x, string y) : (int, bool);
+            extern func function(int x, string y) : bool;
             "
 
             l = Azula::Lexer.new input
@@ -423,16 +421,14 @@ describe Azula::Parser do
             function.nil?.should be_false
 
             function.not_nil!.parameters.size.should eq 2
-            function.not_nil!.return_types.size.should eq 2
 
-            function.not_nil!.parameters[0].type.should eq Azula::Types::Type::INT
+            function.not_nil!.parameters[0].type.main_type.should eq Azula::Types::TypeEnum::INT
             function.not_nil!.parameters[0].ident.should eq "x"
 
-            function.not_nil!.parameters[1].type.should eq Azula::Types::Type::STRING
+            function.not_nil!.parameters[1].type.main_type.should eq Azula::Types::TypeEnum::STRING
             function.not_nil!.parameters[1].ident.should eq "y"
 
-            function.not_nil!.return_types[0].should eq Azula::Types::Type::INT
-            function.not_nil!.return_types[1].should eq Azula::Types::Type::BOOL
+            function.not_nil!.return_type.main_type.should eq Azula::Types::TypeEnum::BOOL
         end
 
         it "function call" do 
