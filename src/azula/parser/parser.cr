@@ -30,12 +30,7 @@ end
 
 # Add the current_token to types, whether its a type or a string
 macro type_or_literal
-    type = Types::Type.parse? @current_token.literal
-    if type.nil?
-        types << @current_token.literal
-    else
-        types << type
-    end
+    type = Types::Type.type_from_string @current_token.literal
 end
 
 module Azula
@@ -69,6 +64,7 @@ module Azula
         TokenType::MODULO => OperatorPrecedence::PRODUCT,
         TokenType::LBRACKET => OperatorPrecedence::CALL,
         TokenType::LBRACE => OperatorPrecedence::CALL,
+        TokenType::LSQUARE => OperatorPrecedence::CALL,
         TokenType::DOT => OperatorPrecedence::ACCESS,
         TokenType::AMPERSAND => OperatorPrecedence::ACCESS,
     }
@@ -103,6 +99,7 @@ module Azula
             register_prefix MINUS, parse_prefix_expression
             register_prefix ASTERISK, parse_prefix_expression
             register_prefix AMPERSAND, parse_prefix_expression
+            register_prefix LSQUARE, parse_array
 
             register_infix PLUS, parse_infix_expression
             register_infix MINUS, parse_infix_expression
@@ -120,6 +117,7 @@ module Azula
             register_infix AND, parse_infix_expression
             register_infix LBRACKET, parse_function_call_expression
             register_infix LBRACE, parse_struct_initialising
+            register_infix LSQUARE, parse_array_access
             register_infix DOT, parse_struct_access
         end
 
@@ -216,10 +214,10 @@ module Azula
                 return true
             end
             if t == TokenType::SEMICOLON
-                ErrorManager.add_error Error.new "expected semicolon", @current_token.file, @current_token.linenumber, @current_token.charnumber
+                ErrorManager.add_error Error.new "expected semicolon", @current_token.file, @current_token.linenumber, @current_token.charnumber+1
                 return false
             end
-            ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @current_token.file, @current_token.linenumber, @current_token.charnumber
+            ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @current_token.file, @current_token.linenumber, @current_token.charnumber+1
             return false
         end
 
@@ -245,12 +243,24 @@ module Azula
             return left
         end
 
+        def parse_type : Types::Type?
+            type = Types::Type.type_from_string @current_token.literal
+            if @peek_token.type == TokenType::LBRACKET
+                self.next_token
+                self.next_token
+                type.secondary_type = self.parse_type
+                self.next_token
+                #self.expect_peek TokenType::RBRACKET
+            end
+            return type
+        end
+
         # Parse an assign statement, where value(s) are assigned to identifier(s)
         def parse_assign_statement : AST::Assign?
             t = @current_token
             idents = [] of (AST::TypedIdentifier | AST::Identifier)
-            type = Types::Type.parse? @current_token.literal
-            if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK
+            # type = parse_type
+            if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK || @peek_token.type == TokenType::LBRACKET
                 ident = parse_typed_identifier
             else
                 ident = parse_identifier
@@ -265,7 +275,7 @@ module Azula
             while @peek_token.type == TokenType::COMMA
                 self.next_token
                 self.next_token
-                type = Types::Type.parse? @current_token.literal
+                type = Types::Type.type_from_string @current_token.literal
                 if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK
                     ident = parse_typed_identifier
                 else
@@ -283,34 +293,44 @@ module Azula
             values = self.parse_expression_list TokenType::SEMICOLON
             nil_return values
 
-            if type == Types::Type::INT64
-                values.size.times do |i|
-                    (values[i].as(AST::IntegerLiteral)).size = 64
+            if !type.nil? && type.is_int
+                size = 32
+                if type.main_type == Types::TypeEnum::INT8
+                    size = 8
+                elsif type.main_type == Types::TypeEnum::INT16
+                    size = 16
+                elsif type.main_type == Types::TypeEnum::INT64
+                    size = 64
                 end
-            elsif type == Types::Type::INT16
                 values.size.times do |i|
-                    (values[i].as(AST::IntegerLiteral)).size = 16
+                    if values[i].as?(AST::IntegerLiteral) != nil
+                        (values[i].as(AST::IntegerLiteral)).size = size
+                    end
                 end
             end
 
             return AST::Assign.new t, idents, values.not_nil!
         end
 
+        def parse_array : AST::ArrayExp?
+            token = @current_token
+            exp_list = self.parse_expression_list TokenType::RSQUARE
+            nil_return exp_list
+
+            return AST::ArrayExp.new token, Types::Type.new(Types::TypeEnum::ARRAY), exp_list
+        end
+
         # Parse a typed identifier, eg. int x, string y
         def parse_typed_identifier : AST::TypedIdentifier?
             assign_token = @current_token
-            type = Types::Type.parse? @current_token.literal
-            if type.nil?
-                type = @current_token.literal
-            end
+            type = self.parse_type
 
             if @peek_token.type == TokenType::ASTERISK
                 self.next_token
 
                 expect_peek_return IDENTIFIER
 
-                ident = AST::TypedIdentifier.new @current_token, @current_token.literal, Types::Type::POINTER
-                ident.pointer_type = type
+                ident = AST::TypedIdentifier.new @current_token, @current_token.literal, Types::Type.new(Types::TypeEnum::POINTER, type)
                 return ident
             end
 
@@ -451,15 +471,15 @@ module Azula
 
             self.next_token
 
-            return_types = self.parse_function_return_types
-            nil_return return_types
+            return_type = self.parse_function_return_type
+            nil_return return_type
 
             expect_peek_return LBRACE
 
             body = self.parse_block_statement
             nil_return body
 
-            return AST::Function.new tok, name, params, return_types, body.not_nil!
+            return AST::Function.new tok, name, params, return_type, body.not_nil!
         end
 
         # Parse an external function
@@ -478,12 +498,12 @@ module Azula
 
             self.next_token
 
-            return_types = self.parse_function_return_types
-            nil_return return_types
+            return_type = self.parse_function_return_type
+            nil_return return_type
 
             expect_peek_return SEMICOLON
 
-            return AST::ExternFunction.new tok, name, params, return_types
+            return AST::ExternFunction.new tok, name, params, return_type
         end
 
         # Parse the parameters of a function, returning a list of TypedIdentifiers
@@ -515,23 +535,9 @@ module Azula
             return idents
         end
 
-        # Parse the return types of a function
-        def parse_function_return_types : Array(Types::Type | String)?
-            types = [] of (Types::Type | String)
-            if @current_token.type == TokenType::LBRACKET
-                self.next_token
-                type_or_literal
-                while @peek_token.type == TokenType::COMMA
-                    self.next_token
-                    self.next_token
-                    type_or_literal
-                end
-
-                expect_peek_return RBRACKET
-            else
-                type_or_literal
-            end
-            return types
+        # Parse the return type of a function
+        def parse_function_return_type : Types::Type?
+            return Types::Type.type_from_string @current_token.literal
         end
 
         # Parse a grouped expression, eg. (5 + 2)
@@ -556,6 +562,19 @@ module Azula
             nil_return args
 
             return AST::FunctionCall.new tok, function.as(AST::Identifier), args
+        end
+
+        def parse_array_access(array : AST::Expression) AST::Expression?
+            token = @current_token
+            self.next_token
+            index = self.parse_expression(OperatorPrecedence::LOWEST, TokenType::RSQUARE)
+            self.next_token
+            if index.nil?
+                self.add_error "index is invalid in array indexing"
+                return
+            end
+
+            return AST::ArrayAccess.new token, array, index
         end
 
         # Parse an expression statement, which is just an expression with nothing being done with that value

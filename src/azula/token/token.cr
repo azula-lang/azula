@@ -143,6 +143,7 @@ module Azula
         "float" => TokenType::TYPE,
         "error" => TokenType::TYPE,
         "void" => TokenType::TYPE,
+        "array" => TokenType::TYPE,
 
         "func" => TokenType::FUNCTION,
         "return" => TokenType::RETURN,

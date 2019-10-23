@@ -1,4 +1,5 @@
 require "../token/*"
+require "../errors/*"
 
 module Azula
 

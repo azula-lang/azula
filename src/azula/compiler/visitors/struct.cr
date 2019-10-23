@@ -22,13 +22,13 @@ module Azula
                     indexes = {} of String=>Int32
                     i = 0
                     node.fields.each do |field|
-                        type = compiler.types.fetch field.type, nil
+                        type = compiler.types.fetch field.type.main_type, nil
                         if !type.nil?
                             vars << type
                         else
-                            struc = compiler.structs.fetch field.type, nil
+                            struc = compiler.structs.fetch field.type.main_type, nil
                             if struc.nil?
-                                ErrorManager.add_error Error.new "could not find type #{field.type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                ErrorManager.add_error Error.new "could not find type #{field.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                             vars << struc

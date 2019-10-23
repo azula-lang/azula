@@ -34,29 +34,31 @@ module Azula
                     end
 
                     assign_type : LLVM::Type? = nil
-                    if ident.type == Types::Type::POINTER
-                        assign_type = compiler.types.fetch ident.pointer_type, nil
+                    if ident.type.main_type == Types::TypeEnum::POINTER
+                        assign_type = compiler.types.fetch ident.type.secondary_type, nil
                         if assign_type.nil?
-                            assign_type = compiler.structs.fetch ident.pointer_type, nil
+                            assign_type = compiler.structs.fetch ident.type.secondary_type, nil
                             if assign_type.nil?
-                                ErrorManager.add_error Error.new "could not find type '#{ident.pointer_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end
                         assign_type = assign_type.pointer
+                    elsif ident.type.main_type == Types::TypeEnum::ARRAY
+                        assign_type = compiler.array_type(ident.type.secondary_type.not_nil!, 10).pointer
                     else
                         # Get type of vars to be assigned
-                        assign_type = compiler.types.fetch ident.type, nil
+                        assign_type = compiler.types.fetch ident.type.main_type, nil
                         if assign_type.nil?
-                            assign_type = compiler.structs.fetch ident.type, nil
+                            assign_type = compiler.structs.fetch ident.type.main_type, nil
                             if assign_type.nil?
-                                ErrorManager.add_error Error.new "could not find type '#{ident.type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end
                     end
                     if assign_type.nil?
-                        ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type}'.", node.token.file, node.token.linenumber, node.token.charnumber
+                        ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type.main_type}'.", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
 

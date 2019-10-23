@@ -38,6 +38,7 @@ and
 /
 **
 %
+array(int) x = [1, 2 + 3];
 "
     file = "repl"
 
@@ -155,6 +156,21 @@ and
         Azula::Token.new(Azula::TokenType::SLASH, "/", file, 33, 1),
         Azula::Token.new(Azula::TokenType::EXPONENT, "**", file, 34, 1),
         Azula::Token.new(Azula::TokenType::MODULO, "%", file, 35, 1),
+
+        Azula::Token.new(Azula::TokenType::TYPE, "array", file, 36, 1),
+        Azula::Token.new(Azula::TokenType::LBRACKET, "(", file, 36, 6),
+        Azula::Token.new(Azula::TokenType::TYPE, "int", file, 36, 7),
+        Azula::Token.new(Azula::TokenType::RBRACKET, ")", file, 36, 10),
+        Azula::Token.new(Azula::TokenType::IDENTIFIER, "x", file, 36, 12),
+        Azula::Token.new(Azula::TokenType::ASSIGN, "=", file, 36, 14),
+        Azula::Token.new(Azula::TokenType::LSQUARE, "[", file, 36, 16),
+        Azula::Token.new(Azula::TokenType::NUMBER, "1", file, 36, 17),
+        Azula::Token.new(Azula::TokenType::COMMA, ",", file, 36, 18),
+        Azula::Token.new(Azula::TokenType::NUMBER, "2", file, 36, 20),
+        Azula::Token.new(Azula::TokenType::PLUS, "+", file, 36, 22),
+        Azula::Token.new(Azula::TokenType::NUMBER, "3", file, 36, 24),
+        Azula::Token.new(Azula::TokenType::RSQUARE, "]", file, 36, 25),
+        Azula::Token.new(Azula::TokenType::SEMICOLON, ";", file, 36, 26),
     ]
 
     it "correctly lexes input and returns tokens" do

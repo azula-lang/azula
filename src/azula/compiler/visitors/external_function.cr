@@ -24,23 +24,23 @@ module Azula
                     # Get the arguments for the function
                     args = [] of LLVM::Type
                     node.parameters.each do |param|
-                        if param.type == Types::Type::POINTER
-                            arg_type = compiler.types.fetch param.pointer_type, nil
+                        if param.type.main_type == Types::TypeEnum::POINTER
+                            arg_type = compiler.types.fetch param.type.secondary_type, nil
                             if arg_type.nil?
-                                arg_type = compiler.structs.fetch param.pointer_type, nil
+                                arg_type = compiler.structs.fetch param.type.secondary_type, nil
                                 if arg_type.nil?
-                                    ErrorManager.add_error Error.new "could not find type #{param.pointer_type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                    ErrorManager.add_error Error.new "could not find type #{param.type.secondary_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                     return
                                 end
                             end
                             args << arg_type.pointer
                             next
                         end
-                        arg_type = compiler.types.fetch param.type, nil
+                        arg_type = compiler.types.fetch param.type.main_type, nil
                         if arg_type.nil?
-                            arg_type = compiler.structs.fetch param.type, nil
+                            arg_type = compiler.structs.fetch param.type.main_type, nil
                             if arg_type.nil?
-                                ErrorManager.add_error Error.new "could not find type #{param.type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                ErrorManager.add_error Error.new "could not find type #{param.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end
@@ -48,11 +48,11 @@ module Azula
                     end
 
                     # Get the return type of the function
-                    return_type = compiler.types.fetch node.return_types[0], nil
+                    return_type = compiler.types.fetch node.return_type.main_type, nil
                     if return_type.nil?
-                        return_type = compiler.structs.fetch node.return_types[0], nil
+                        return_type = compiler.structs.fetch node.return_type.main_type, nil
                         if return_type.nil?
-                            ErrorManager.add_error Error.new "could not find type #{node.return_types[0]}", node.token.file, node.token.linenumber, node.token.charnumber
+                            ErrorManager.add_error Error.new "could not find type #{node.return_type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
                     end

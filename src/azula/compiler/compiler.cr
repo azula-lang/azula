@@ -60,14 +60,14 @@ module Azula
 
                 @string_type = @context.struct([@context.int8.pointer, @context.int32, @context.int32], "String")
                 @types = {
-                    Types::Type::VOID => @context.void,
-                    Types::Type::INT => @context.int32,
-                    Types::Type::INT8 => @context.int8,
-                    Types::Type::INT64 => @context.int64,
-                    Types::Type::BOOL => @context.int1,
-                    Types::Type::FLOAT => @context.double,
-                    Types::Type::STRING => @string_type,
-                    Types::Type::CSTRING => @context.int8.pointer,
+                    Types::TypeEnum::VOID => @context.void,
+                    Types::TypeEnum::INT => @context.int32,
+                    Types::TypeEnum::INT8 => @context.int8,
+                    Types::TypeEnum::INT64 => @context.int64,
+                    Types::TypeEnum::BOOL => @context.int1,
+                    Types::TypeEnum::FLOAT => @context.double,
+                    Types::TypeEnum::STRING => @string_type,
+                    Types::TypeEnum::CSTRING => @context.int8.pointer,
                 }
 
                 @builtin_printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
@@ -125,7 +125,15 @@ module Azula
             end
 
             def get_pointer(type : Types::Type)
-                return @types[type].pointer
+                return @types[type.main_type].pointer
+            end
+
+            def array_type(type : Types::Type, size : Int32) : LLVM::Type
+                if type.main_type == Types::TypeEnum::ARRAY
+                    return self.array_type(type.secondary_type.not_nil!, size)
+                else
+                    return @types[type.main_type]
+                end
             end
 
         end
