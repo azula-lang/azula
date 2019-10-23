@@ -128,6 +128,14 @@ module Azula
                 return @types[type.main_type].pointer
             end
 
+            def array_type(type : Types::Type, size : Int32) : LLVM::Type
+                if type.main_type == Types::TypeEnum::ARRAY
+                    return self.array_type(type.secondary_type.not_nil!, size)
+                else
+                    return @types[type.main_type]
+                end
+            end
+
         end
 
     end

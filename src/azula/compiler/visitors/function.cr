@@ -16,6 +16,7 @@ module Azula
                     if node.nil?
                         return
                     end
+
                     
                     # Keep the builder to set it back once the function body is compiled
                     old_builder = compiler.builder
@@ -23,6 +24,11 @@ module Azula
                     # Get the arguments for the function
                     args = [] of LLVM::Type
                     node.parameters.each do |param|
+                        if param.type.main_type == Types::TypeEnum::ARRAY
+                            assign_type = compiler.array_type(param.type.secondary_type.not_nil!, 10).pointer
+                            args << assign_type
+                            next
+                        end
                         arg_type = compiler.types.fetch param.type.main_type, nil
                         if arg_type.nil?
                             arg_type = compiler.structs.fetch param.type.main_type, nil
@@ -52,11 +58,15 @@ module Azula
                             index = 0
                             node.parameters.each do |param|
                                 param_type = compiler.types.fetch param.type.main_type, nil
-                                if param_type.nil?
-                                    param_type = compiler.structs.fetch param.type.main_type, nil
+                                if param.type.main_type == Types::TypeEnum::ARRAY
+                                    param_type = compiler.array_type(param.type.secondary_type.not_nil!, 10).pointer
+                                else
                                     if param_type.nil?
-                                        ErrorManager.add_error Error.new "could not find type #{param.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
-                                        return
+                                        param_type = compiler.structs.fetch param.type.main_type, nil
+                                        if param_type.nil?
+                                            ErrorManager.add_error Error.new "could not find type #{param.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                            return
+                                        end
                                     end
                                 end
                                 ptr = builder.alloca param_type, param.ident

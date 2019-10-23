@@ -139,7 +139,7 @@ module Azula
                     ident_type = self.check(node.idents[0]).not_nil!
                     val_types.size.times do |i|
                         if !compare_type val_types[i], ident_type
-                            self.add_error "incorrect value in assign statement, trying to assign #{val_types[i]} to variable of type #{ident_type}", node.token
+                            self.add_error "incorrect value in assign statement, trying to assign #{val_types[i].main_type} to variable of type #{ident_type.main_type}", node.token
                             return Type.new TypeEnum::VOID
                         end
                     end
@@ -183,7 +183,7 @@ module Azula
                     return_if_nil body_return
 
                     if !compare_type body_return, node.return_type
-                        self.add_error "cannot return #{body_return}, requires #{node.return_type}", node.token
+                        self.add_error "cannot return #{body_return.main_type}, requires #{node.return_type.main_type}", node.token
                         return
                     end
 
@@ -212,6 +212,14 @@ module Azula
                 when .is_a?(AST::FunctionCall)
                     convert_and_check_nil FunctionCall
                     name = node.function_name.ident
+
+                    args = [] of Type
+                    node.arguments.each do |arg|
+                        t = self.check arg
+                        return_if_nil t
+                        args << t
+                    end
+
                     if name == "println"
                         return Type.new TypeEnum::VOID
                     end
@@ -219,13 +227,6 @@ module Azula
                     if str.nil?
                         self.add_error "undefined function #{name}", node.token
                         return
-                    end
-
-                    args = [] of Type
-                    node.arguments.each do |arg|
-                        t = self.check arg
-                        return_if_nil t
-                        args << t
                     end
 
                     arg_types = @function_args.fetch name, nil
@@ -255,6 +256,41 @@ module Azula
                     when "==", "!=", "or", "and", "<=", ">="
                         return Type.new TypeEnum::BOOL
                     end
+                when .is_a?(AST::ArrayExp)
+                    convert_and_check_nil ArrayExp
+                    arrayType : Types::Type? = nil
+                    node.values.each do |v|
+                        t = self.check v
+                        return_if_nil t
+                        if arrayType == nil
+                            arrayType = t
+                            node.type.secondary_type = t
+                            next
+                        end
+                        if t.not_nil!.main_type != arrayType.not_nil!.main_type
+                            self.add_error "cannot have array of multiple types", node.token
+                            return
+                        end
+                    end
+                    return node.type
+                when .is_a?(AST::ArrayAccess)
+                    convert_and_check_nil ArrayAccess
+                    v = self.check(node.array)
+                    return_if_nil v
+
+                    if v.main_type != Types::TypeEnum::ARRAY
+                        self.add_error "can't index non-array", node.token
+                        return
+                    end
+
+                    index_type = self.check(node.index)
+                    return_if_nil index_type
+                    if !index_type.is_int
+                        self.add_error "can't use non-int as index", node.token
+                        return
+                    end
+
+                    return v.not_nil!.secondary_type
                 else
                     return Type.new TypeEnum::VOID
                 end

@@ -513,4 +513,26 @@ describe Azula::Parser do
 
     end
 
+    it "array literal" do
+        input = "
+            [1, 2, 3];
+            "
+
+            l = Azula::Lexer.new input
+            p = Azula::Parser.new l
+
+            program = p.parse_program
+            check_parser_errors p
+
+            program.statements.size.should eq 1
+
+            array_exp = program.statements[0].as?(Azula::AST::ExpressionStatement)
+            array_exp.nil?.should be_false
+
+            array_exp = array_exp.not_nil!.expression.as?(Azula::AST::ArrayExp)
+            array_exp.nil?.should be_false
+
+            array_exp.not_nil!.values.size.should eq 3
+    end
+
 end

@@ -64,6 +64,7 @@ module Azula
         TokenType::MODULO => OperatorPrecedence::PRODUCT,
         TokenType::LBRACKET => OperatorPrecedence::CALL,
         TokenType::LBRACE => OperatorPrecedence::CALL,
+        TokenType::LSQUARE => OperatorPrecedence::CALL,
         TokenType::DOT => OperatorPrecedence::ACCESS,
         TokenType::AMPERSAND => OperatorPrecedence::ACCESS,
     }
@@ -98,6 +99,7 @@ module Azula
             register_prefix MINUS, parse_prefix_expression
             register_prefix ASTERISK, parse_prefix_expression
             register_prefix AMPERSAND, parse_prefix_expression
+            register_prefix LSQUARE, parse_array
 
             register_infix PLUS, parse_infix_expression
             register_infix MINUS, parse_infix_expression
@@ -115,6 +117,7 @@ module Azula
             register_infix AND, parse_infix_expression
             register_infix LBRACKET, parse_function_call_expression
             register_infix LBRACE, parse_struct_initialising
+            register_infix LSQUARE, parse_array_access
             register_infix DOT, parse_struct_access
         end
 
@@ -240,12 +243,24 @@ module Azula
             return left
         end
 
+        def parse_type : Types::Type?
+            type = Types::Type.type_from_string @current_token.literal
+            if @peek_token.type == TokenType::LBRACKET
+                self.next_token
+                self.next_token
+                type.secondary_type = self.parse_type
+                self.next_token
+                #self.expect_peek TokenType::RBRACKET
+            end
+            return type
+        end
+
         # Parse an assign statement, where value(s) are assigned to identifier(s)
         def parse_assign_statement : AST::Assign?
             t = @current_token
             idents = [] of (AST::TypedIdentifier | AST::Identifier)
-            type = Types::Type.type_from_string @current_token.literal
-            if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK
+            # type = parse_type
+            if @peek_token.type == TokenType::IDENTIFIER || @peek_token.type == TokenType::ASTERISK || @peek_token.type == TokenType::LBRACKET
                 ident = parse_typed_identifier
             else
                 ident = parse_identifier
@@ -278,7 +293,7 @@ module Azula
             values = self.parse_expression_list TokenType::SEMICOLON
             nil_return values
 
-            if type.is_int
+            if !type.nil? && type.is_int
                 size = 32
                 if type.main_type == Types::TypeEnum::INT8
                     size = 8
@@ -297,10 +312,18 @@ module Azula
             return AST::Assign.new t, idents, values.not_nil!
         end
 
+        def parse_array : AST::ArrayExp?
+            token = @current_token
+            exp_list = self.parse_expression_list TokenType::RSQUARE
+            nil_return exp_list
+
+            return AST::ArrayExp.new token, Types::Type.new(Types::TypeEnum::ARRAY), exp_list
+        end
+
         # Parse a typed identifier, eg. int x, string y
         def parse_typed_identifier : AST::TypedIdentifier?
             assign_token = @current_token
-            type = Types::Type.type_from_string @current_token.literal
+            type = self.parse_type
 
             if @peek_token.type == TokenType::ASTERISK
                 self.next_token
@@ -539,6 +562,19 @@ module Azula
             nil_return args
 
             return AST::FunctionCall.new tok, function.as(AST::Identifier), args
+        end
+
+        def parse_array_access(array : AST::Expression) AST::Expression?
+            token = @current_token
+            self.next_token
+            index = self.parse_expression(OperatorPrecedence::LOWEST, TokenType::RSQUARE)
+            self.next_token
+            if index.nil?
+                self.add_error "index is invalid in array indexing"
+                return
+            end
+
+            return AST::ArrayAccess.new token, array, index
         end
 
         # Parse an expression statement, which is just an expression with nothing being done with that value

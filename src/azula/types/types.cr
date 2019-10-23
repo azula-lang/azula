@@ -37,6 +37,8 @@ module Azula
                     return Type.new TypeEnum::VOID
                 when "error"
                     return Type.new TypeEnum::ERROR
+                when "array"
+                    return Type.new TypeEnum::ARRAY
                 end
 
                 return Type.new s
@@ -60,6 +62,7 @@ module Azula
             VOID
             ERROR
             POINTER
+            ARRAY
         end
 
     end
