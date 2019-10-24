@@ -132,6 +132,9 @@ module Azula
                 if type.main_type == Types::TypeEnum::ARRAY
                     return self.array_type(type.secondary_type.not_nil!, size)
                 else
+                    if type.main_type == Types::TypeEnum::STRING
+                        return @types[type.main_type].pointer
+                    end
                     return @types[type.main_type]
                 end
             end

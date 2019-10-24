@@ -24,6 +24,7 @@ module Azula
         end
 
         def self.set_file(code)
+            @@Errors = [] of Error
             @@Code = code
         end
 

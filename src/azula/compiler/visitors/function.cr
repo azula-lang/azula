@@ -59,7 +59,7 @@ module Azula
                             node.parameters.each do |param|
                                 param_type = compiler.types.fetch param.type.main_type, nil
                                 if param.type.main_type == Types::TypeEnum::ARRAY
-                                    param_type = compiler.array_type(param.type.secondary_type.not_nil!, 10).pointer
+                                    param_type = compiler.array_type(param.type.secondary_type.not_nil!, 10).array(0).pointer
                                 else
                                     if param_type.nil?
                                         param_type = compiler.structs.fetch param.type.main_type, nil

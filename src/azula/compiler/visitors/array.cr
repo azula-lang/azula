@@ -25,9 +25,8 @@ module Azula
                         end
                         values << v
                     end
-                    alloca = compiler.builder.alloca array_type
+                    alloca = compiler.builder.alloca array_type.array(values.size)
                     array = array_type.const_array(values)
-                    puts array.type
                     compiler.builder.store array, alloca
                     return alloca
                 end

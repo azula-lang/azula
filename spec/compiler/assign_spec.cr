@@ -16,7 +16,7 @@ describe Azula::Compiler do
         end
 
         it "string" do
-            input = wrap_main("string s = \"hi\"; println(s);", "string")
+            input = wrap_main("string s = \"hi\"; println(s);", "void")
             compile_and_run(input).should eq "hi"
         end
 
@@ -26,6 +26,11 @@ describe Azula::Compiler do
 
             input = wrap_main("bool x = false; return x;", "bool")
             run(input).not_nil!.to_b.should be_false
+        end
+
+        it "array" do
+            input = wrap_main("array(int) y = [1, 2, 3, 4, 5]; return y[3];", "int")
+            run(input).not_nil!.to_i.should eq 4
         end
 
         it "multiple assign" do

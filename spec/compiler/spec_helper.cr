@@ -7,17 +7,20 @@ require "../../src/azula/lexer"
 require "llvm"
 
 def run(code : String) LLVM::GenericValue?
+    Azula::ErrorManager.set_file code.split("\n")
+
     l = Azula::Lexer.new code
     l.file = "tests"
     p = Azula::Parser.new l
     smt = p.parse_program
 
-    if !p.errors.empty?
-        p.errors.each do |error|
-            puts error
-        end
-        return
+    if !Azula::ErrorManager.can_compile
+        Azula::ErrorManager.print_errors
+        1.should eq 2
     end
+
+    t = Azula::Types::Typechecker.new
+    t.check smt
 
     c = Azula::Compiler::Compiler.new
     c.register_visitors
@@ -31,17 +34,26 @@ def run(code : String) LLVM::GenericValue?
 end
 
 def compile_and_run(code : String)
+    # l = Azula::Lexer.new code
+    # l.file = "tests"
+    # p = Azula::Parser.new l
+    # smt = p.parse_program
+
+    # Setup error manager
+    Azula::ErrorManager.set_file code.split("\n")
+
     l = Azula::Lexer.new code
     l.file = "tests"
     p = Azula::Parser.new l
     smt = p.parse_program
 
-    if !p.errors.empty?
-        p.errors.each do |error|
-            puts error
-        end
-        return
+    if !Azula::ErrorManager.can_compile
+        Azula::ErrorManager.print_errors
+        1.should eq 2
     end
+
+    t = Azula::Types::Typechecker.new
+    t.check smt
 
     c = Azula::Compiler::Compiler.new
     c.register_visitors

@@ -104,6 +104,7 @@ module Azula
 
                 add_builtin_func("__print_int", print_int)
                 print_funcs[context.int32] = print_int
+                print_funcs[context.int32.pointer] = print_int
                 print_funcs[context.int8] = print_int
                 print_funcs[context.int64] = print_int
 

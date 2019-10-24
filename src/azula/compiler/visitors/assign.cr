@@ -45,7 +45,7 @@ module Azula
                         end
                         assign_type = assign_type.pointer
                     elsif ident.type.main_type == Types::TypeEnum::ARRAY
-                        assign_type = compiler.array_type(ident.type.secondary_type.not_nil!, 10).pointer
+                        assign_type = compiler.array_type(ident.type.secondary_type.not_nil!, 10).array(0).pointer
                     else
                         # Get type of vars to be assigned
                         assign_type = compiler.types.fetch ident.type.main_type, nil
