@@ -38,6 +38,7 @@ module Azula
                     end
                     compiler.structs[compiler.package_name.not_nil! + "." + node.struct_name.ident] = compiler.context.struct(vars, compiler.package_name.not_nil! + "." + node.struct_name.ident)
                     compiler.struct_fields[compiler.package_name.not_nil! + "." + node.struct_name.ident] = indexes
+
                     return
                 end
 

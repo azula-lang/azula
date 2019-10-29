@@ -6,12 +6,12 @@ describe Azula::Compiler do
 
         it "basic" do
             input = "
-            func main(): int {
+            func main(): void {
                 int i = 0;
                 while(i < 10) {
                     i = i + 1;
                 }
-                return i;
+                println(i);
             }
             "
             run(input).not_nil!.to_i.should eq 10

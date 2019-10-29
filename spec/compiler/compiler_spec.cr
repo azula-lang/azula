@@ -3,11 +3,7 @@ require "./spec_helper"
 describe Azula::Compiler do
 
     it "compile code" do
-        run("func main(): int { return 5; }").not_nil!.to_i.should eq 5
-    end
-
-    it "return nil" do
-        typeof(run("func main(): void { return; }").not_nil!.to_pointer).should eq Pointer(Void)
+        run("func main(): void { println(5); }").not_nil!.to_i.should eq 5
     end
 
     it "fibonacci" do
@@ -20,7 +16,7 @@ describe Azula::Compiler do
         }
 
         func main(): void {
-            return fib(15);
+            println(fib(15));
         }
         "
         run(input).not_nil!.to_i.should eq 610

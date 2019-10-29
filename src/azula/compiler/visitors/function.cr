@@ -31,7 +31,8 @@ module Azula
                         end
                         arg_type = compiler.types.fetch param.type.main_type, nil
                         if arg_type.nil?
-                            arg_type = compiler.structs.fetch param.type.main_type, nil
+                            name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + param.type.main_type.as(String)
+                            arg_type = compiler.structs.fetch name, nil
                             if arg_type.nil?
                                 ErrorManager.add_error Error.new "could not find type #{param.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                 return

@@ -5,12 +5,12 @@ describe Azula::Compiler do
     describe "if" do
 
         it "basic" do
-            input = wrap_main("if(true) { return 5; } else { return 10; }", "int")
+            input = wrap_main("if(true) { println(5); } else { println(10); }", "void")
             run(input).not_nil!.to_i.should eq 5
         end
 
         it "boolean" do
-            input = wrap_main("bool x = false; if(x) { return 10; } else { return 4; }", "int")
+            input = wrap_main("bool x = false; if(x) { println(10); } else { println(4); }", "void")
             run(input).not_nil!.to_i.should eq 4
         end
 
@@ -18,14 +18,14 @@ describe Azula::Compiler do
             input = wrap_main("
             if(true) {
                 if(false) { 
-                    return 14;
+                    println(14);
                 } else { 
-                    return 20;
+                    println(20);
                 } 
             } else { 
-                return 10; 
+                println(10); 
             }
-            ", "int")
+            ", "void")
             run(input).not_nil!.to_i.should eq 20
         end
 

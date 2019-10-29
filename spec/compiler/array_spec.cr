@@ -6,9 +6,9 @@ describe Azula::Compiler do
 
         it "basic" do
             input = "
-            func main(): int {
+            func main(): void {
                 array(int) y = [1, 2, 3, 4, 5, 11];
-                return y[5];
+                println(y[5]);
             }
             "
             run(input).not_nil!.to_i.should eq 11

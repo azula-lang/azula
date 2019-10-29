@@ -5,14 +5,14 @@ describe Azula::Compiler do
     describe "literals" do
 
         it "int" do
-            input = wrap_main("return 5;", "int")
+            input = wrap_main("println(5);", "void")
             run(input).not_nil!.to_i.should eq 5
         end
 
         it "float" do
-            input = wrap_main("return 5.234;", "float")
+            input = wrap_main("println(5.234);", "void")
             # Floats are being awkward
-            run(input).not_nil!.to_f64.to_f32.should eq 5.234.to_f32
+            run(input).not_nil!.should eq "5.234000"
         end
 
         it "string" do
@@ -21,11 +21,11 @@ describe Azula::Compiler do
         end
 
         it "boolean" do
-            input = wrap_main("return true;", "bool")
-            run(input).not_nil!.to_b.should be_true
+            input = wrap_main("println(true);", "void")
+            run(input).not_nil!.should eq "true"
 
-            input = wrap_main("return false;", "bool")
-            run(input).not_nil!.to_b.should be_false
+            input = wrap_main("println(false);", "void")
+            run(input).not_nil!.should eq "false"
         end
 
     end

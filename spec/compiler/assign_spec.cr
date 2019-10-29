@@ -5,14 +5,14 @@ describe Azula::Compiler do
     describe Azula::Compiler::Visitors::Assign do
 
         it "int" do 
-            input = wrap_main("int i = 5; return i;", "int")
+            input = wrap_main("int i = 5; println(i);", "void")
             run(input).not_nil!.to_i.should eq 5
         end
 
         it "float" do
-            input = wrap_main("float y = 5.234; return y;", "float")
+            input = wrap_main("float y = 5.234; println(y);", "void")
             # Floats are being awkward
-            run(input).not_nil!.to_f64.to_f32.should eq 5.234.to_f32
+            run(input).not_nil!.should eq "5.234000"
         end
 
         it "string" do
@@ -21,21 +21,21 @@ describe Azula::Compiler do
         end
 
         it "boolean" do
-            input = wrap_main("bool x = true; return x;", "bool")
-            run(input).not_nil!.to_b.should be_true
+            input = wrap_main("bool x = true; println(x);", "void")
+            run(input).not_nil!.should eq "true"
 
-            input = wrap_main("bool x = false; return x;", "bool")
-            run(input).not_nil!.to_b.should be_false
+            input = wrap_main("bool x = false; println(x);", "void")
+            run(input).not_nil!.should eq "false"
         end
 
         it "array" do
-            input = wrap_main("array(int) y = [1, 2, 3, 4, 5]; return y[3];", "int")
-            run(input).not_nil!.to_i.should eq 4
+            input = wrap_main("array(int) y = [1, 2, 3, 4, 5]; println(y[3]);", "void")
+            run(input).not_nil!.should eq "4"
         end
 
         it "multiple assign" do
-            input = wrap_main("int i, y = 5, 10; return y;", "int")
-            run(input).not_nil!.to_i.should eq 10
+            input = wrap_main("int i, y = 5, 10; println(y);", "void")
+            run(input).not_nil!.should eq "10"
         end
 
         it "multiple assign function" do

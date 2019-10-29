@@ -123,7 +123,6 @@ module Azula
                     return
                 end
                 if node.class != AST::Program && node.class != AST::Package && @package_name == nil
-                    puts node.class
                     ErrorManager.add_error Error.new "file missing package declaration", "unknown", 0, 0
                     return
                 end

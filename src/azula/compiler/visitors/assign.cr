@@ -37,8 +37,8 @@ module Azula
                     if ident.type.main_type == Types::TypeEnum::POINTER
                         assign_type = compiler.types.fetch ident.type.secondary_type.not_nil!.main_type, nil
                         if assign_type.nil?
-                            puts ident.type.secondary_type.not_nil!.main_type
-                            assign_type = compiler.structs.fetch ident.type.secondary_type.not_nil!.main_type, nil
+                            name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.secondary_type.not_nil!.main_type.as(String)
+                            assign_type = compiler.structs.fetch name, nil
                             if assign_type.nil?
                                 ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type.not_nil!.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
@@ -51,7 +51,8 @@ module Azula
                         # Get type of vars to be assigned
                         assign_type = compiler.types.fetch ident.type.main_type, nil
                         if assign_type.nil?
-                            assign_type = compiler.structs.fetch ident.type.main_type, nil
+                            name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.main_type.as(String)
+                            assign_type = compiler.structs.fetch name, nil
                             if assign_type.nil?
                                 ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return

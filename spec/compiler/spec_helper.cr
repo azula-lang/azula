@@ -6,31 +6,8 @@ require "../../src/azula/lexer"
 
 require "llvm"
 
-def run(code : String) LLVM::GenericValue?
-    Azula::ErrorManager.set_file code.split("\n")
-
-    l = Azula::Lexer.new code
-    l.file = "tests"
-    p = Azula::Parser.new l
-    smt = p.parse_program
-
-    if !Azula::ErrorManager.can_compile
-        Azula::ErrorManager.print_errors
-        1.should eq 2
-    end
-
-    t = Azula::Types::Typechecker.new
-    t.check smt
-
-    c = Azula::Compiler::Compiler.new
-    c.register_visitors
-    c.compile smt
-
-    LLVM.init_x86
-    jit = LLVM::JITCompiler.new c.main_module
-    result = jit.run_function(c.main_module.functions["main"], c.context)
-
-    return result
+def run(code : String)
+    return compile_and_run code
 end
 
 def compile_and_run(code : String)
@@ -39,6 +16,8 @@ def compile_and_run(code : String)
     # p = Azula::Parser.new l
     # smt = p.parse_program
 
+
+    code = "package \"tests\";" + code
     # Setup error manager
     Azula::ErrorManager.set_file code.split("\n")
 

@@ -20,9 +20,9 @@ module Azula
 
             # The literal string representation of this node.
             def to_string : String
-                s = "#{self.token_literal} #{@struct_name.to_string} {\n"
+                s = "#{self.token_literal} {\n"
                 @imports.each do |import|
-                    s += field + "\n"
+                    s += import + "\n"
                 end
                 s += "}"
             end

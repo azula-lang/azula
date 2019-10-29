@@ -10,8 +10,8 @@ describe Azula::Compiler do
                 return 5;
             }
 
-            func main(): int {
-                return x();
+            func main(): void {
+                println(x());
             }
             "
 
@@ -24,8 +24,8 @@ describe Azula::Compiler do
                 return y + z;
             }
 
-            func main(): int {
-                return x(10, 20);
+            func main(): void {
+                println(x(10, 20));
             }
             "
 
