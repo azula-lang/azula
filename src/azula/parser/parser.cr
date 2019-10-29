@@ -118,7 +118,7 @@ module Azula
             register_infix LBRACKET, parse_function_call_expression
             register_infix LBRACE, parse_struct_initialising
             register_infix LSQUARE, parse_array_access
-            register_infix DOT, parse_struct_access
+            register_infix DOT, parse_access
         end
 
         # Advance current token pointer to the next token
@@ -152,6 +152,8 @@ module Azula
                     return self.parse_assign_statement
                 elsif @peek_token.type == TokenType::IDENTIFIER
                     return self.parse_assign_statement
+                elsif @peek_token.type == TokenType::ASTERISK
+                    return self.parse_assign_statement
                 end
             when TokenType::RETURN
                 return self.parse_return_statement
@@ -163,6 +165,10 @@ module Azula
                 return self.parse_external_function
             when TokenType::STRUCT
                 return self.parse_struct
+            when TokenType::IMPORT
+                return self.parse_imports
+            when TokenType::PACKAGE
+                return self.parse_package
             when TokenType::IF
                 return self.parse_if_statement true
             when TokenType::WHILE
@@ -629,6 +635,32 @@ module Azula
             return AST::StructInitialise.new tok, struct_ident, args
         end
 
+        def parse_imports : AST::Import?
+            tok = @current_token
+            imports = [] of String
+            expect_peek_return LBRACE
+
+            while @peek_token.type != TokenType::RBRACE
+                self.next_token
+                str = self.parse_string_literal.value
+                imports << str
+            end
+
+            self.next_token
+
+            return AST::Import.new tok, imports
+        end
+
+        def parse_package : AST::Package?
+            tok = @current_token
+            self.next_token
+            name = self.parse_string_literal.value
+
+            expect_peek_return SEMICOLON
+
+            return AST::Package.new tok, name
+        end
+
         # Parse an if statement, checking for elseifs and elses
         def parse_if_statement(top_level : Bool) : AST::If?
             tok = @current_token
@@ -690,13 +722,15 @@ module Azula
             return AST::While.new tok, exp, body
         end
 
-        # Parse the accessing of a field inside a struct, eg. p.name
-        def parse_struct_access(s : AST::Expression) : AST::StructAccess
+        def parse_access(s : AST::Expression) : AST::Access?
             tok = @current_token
             self.next_token
-            field = AST::Identifier.new @current_token, @current_token.literal
+            exp = self.parse_expression
+            if exp.nil?
+                return
+            end
 
-            return AST::StructAccess.new tok, s, field
+            return AST::Access.new tok, s, exp
         end
 
         # Returns the operator precedence of a token

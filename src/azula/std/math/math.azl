@@ -1,0 +1,55 @@
+package "math";
+
+extern func sqrt(float x): float;
+extern func abs(int64 x): int64;
+extern func cos(float x): float;
+extern func sin(float x): float;
+extern func tan(float x): float;
+extern func log(): void;
+extern func atoi(cstring x): int;
+
+func sqrt(float x): float {
+    return external.sqrt(x);
+}
+
+func abs(int64 x): int64 {
+    return external.abs(x);
+}
+
+func cos(float x): float {
+    return external.cos(x);
+}
+
+func sin(float x): float {
+    return external.sin(x);
+}
+
+func tan(float x): float {
+    return external.tan(x);
+}
+
+func log(float x): float {
+    return external.log(x);
+}
+
+func max(float x, float y): float {
+    if(x > y) {
+        return x;
+    } else {
+        return y;
+    }
+    return 0;
+}
+
+func min(float x, float y): float {
+    if(x < y) {
+        return x;
+    } else {
+        return y;
+    }
+    return 0;
+}
+
+func atoi(string s): int {
+    return external.atoi(external.cstring_conv(s));
+}

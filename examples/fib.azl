@@ -1,4 +1,8 @@
-extern func time(int x): int;
+package "examples";
+
+import {
+    "os"
+}
 
 // fib computes the xth number in the fibonacci sequence and returns the value
 func fib(int x): int64 {
@@ -10,15 +14,12 @@ func fib(int x): int64 {
 
 func main(): void {
     // Save start time
-    int start = time(0);
+    int64 start = os.time();
 
     // Compute 46th number in the fibonacci sequence
     int64 result = fib(46);
 
-    // Save end time
-    int end = time(0);
-
     // Print result
     println("Answer:", result);
-    println("Computed in", (end - start), "seconds.");
+    println("Computed in", (os.time() - start), "seconds.");
 }

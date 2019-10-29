@@ -25,11 +25,11 @@ module Azula
                     args = [] of LLVM::Type
                     node.parameters.each do |param|
                         if param.type.main_type == Types::TypeEnum::POINTER
-                            arg_type = compiler.types.fetch param.type.secondary_type, nil
+                            arg_type = compiler.types.fetch param.type.secondary_type.not_nil!.main_type, nil
                             if arg_type.nil?
-                                arg_type = compiler.structs.fetch param.type.secondary_type, nil
+                                arg_type = compiler.structs.fetch param.type.secondary_type.not_nil!.main_type, nil
                                 if arg_type.nil?
-                                    ErrorManager.add_error Error.new "could not find type #{param.type.secondary_type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                    ErrorManager.add_error Error.new "could not find type #{param.type.secondary_type.not_nil!.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                     return
                                 end
                             end

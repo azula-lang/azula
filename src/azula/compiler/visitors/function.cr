@@ -43,14 +43,18 @@ module Azula
                     # Get the return type of the function
                     return_type = compiler.types.fetch node.return_type.main_type, nil
                     if return_type.nil?
-                        return_type = compiler.structs.fetch node.return_type.main_type, nil
+                        name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + node.return_type.main_type.as(String)
+                        return_type = compiler.structs.fetch name, nil
                         if return_type.nil?
                             ErrorManager.add_error Error.new "could not find type #{node.return_type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
                     end
 
-                    compiler.main_module.functions.add(node.function_name.ident, args, return_type) do |func|
+                    func_name = node.function_name.ident == "main" ? "main" : compiler.package_name.not_nil! + "." + node.function_name.ident
+
+                    compiler.functions << AzlFunction.new func_name, args, return_type
+                    compiler.main_module.functions.add(func_name, args, return_type) do |func|
                         compiler.current_func = func
                         entry = func.basic_blocks.append "entry" do |builder|
                             compiler.builder = builder
@@ -62,7 +66,8 @@ module Azula
                                     param_type = compiler.array_type(param.type.secondary_type.not_nil!, 10).array(0).pointer
                                 else
                                     if param_type.nil?
-                                        param_type = compiler.structs.fetch param.type.main_type, nil
+                                        name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + param.type.main_type.as(String)
+                                        param_type = compiler.structs.fetch name, nil
                                         if param_type.nil?
                                             ErrorManager.add_error Error.new "could not find type #{param.type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
                                             return

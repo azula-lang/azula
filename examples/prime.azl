@@ -1,3 +1,5 @@
+package "examples";
+
 func is_prime(int x): bool {
     int i, divisors = 1, 0;
     while(i <= x / 2) {

@@ -36,8 +36,8 @@ module Azula
                         indexes[field.ident] = i
                         i += 1
                     end
-                    compiler.structs[node.struct_name.ident] = compiler.context.struct(vars, node.struct_name.ident)
-                    compiler.struct_fields[node.struct_name.ident] = indexes
+                    compiler.structs[compiler.package_name.not_nil! + "." + node.struct_name.ident] = compiler.context.struct(vars, compiler.package_name.not_nil! + "." + node.struct_name.ident)
+                    compiler.struct_fields[compiler.package_name.not_nil! + "." + node.struct_name.ident] = indexes
                     return
                 end
 
@@ -53,7 +53,8 @@ module Azula
                         return
                     end
 
-                    struc = compiler.structs.fetch node.struct_name.ident, nil
+                    name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + node.struct_name.ident
+                    struc = compiler.structs.fetch name, nil
                     if struc.nil?
                         puts "unknown struct"
                         return
@@ -71,37 +72,37 @@ module Azula
 
             end
 
-            # Visit a Struct field access expression and return the result
-            @[CompilerVisitor(node: AST::StructAccess)]
-            class StructAccess < Visitor
+            # # Visit a Struct field access expression and return the result
+            # @[CompilerVisitor(node: AST::StructAccess)]
+            # class StructAccess < Visitor
 
-                def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
-                    node = node.as?(AST::StructAccess)
-                    if node.nil?
-                        return
-                    end
+            #     def run(compiler : Compiler, node : AST::Node) : LLVM::Value?
+            #         node = node.as?(AST::StructAccess)
+            #         if node.nil?
+            #             return
+            #         end
 
-                    struc = compiler.compile node.struct_exp
-                    if struc.nil?
-                        return
-                    end
+            #         struc = compiler.compile node.struct_exp
+            #         if struc.nil?
+            #             return
+            #         end
 
-                    alloca = compiler.builder.alloca struc.not_nil!.type
-                    compiler.builder.store struc.not_nil!, alloca
+            #         alloca = compiler.builder.alloca struc.not_nil!.type
+            #         compiler.builder.store struc.not_nil!, alloca
 
-                    fields = compiler.struct_fields[struc.type.struct_name]
-                    field = fields.fetch node.field.as(Azula::AST::Identifier).ident, nil
-                    if field.nil?
-                        puts "invalid field"
-                        return
-                    end
+            #         fields = compiler.struct_fields[struc.type.struct_name]
+            #         field = fields.fetch node.field.as(Azula::AST::Identifier).ident, nil
+            #         if field.nil?
+            #             puts "invalid field"
+            #             return
+            #         end
 
-                    gep = compiler.builder.gep alloca, compiler.context.int32.const_int(0), compiler.context.int32.const_int(field)
-                    load = compiler.builder.load gep
-                    return load
-                end
+            #         gep = compiler.builder.gep alloca, compiler.context.int32.const_int(0), compiler.context.int32.const_int(field)
+            #         load = compiler.builder.load gep
+            #         return load
+            #     end
 
-            end
+            # end
         end
     end
 end

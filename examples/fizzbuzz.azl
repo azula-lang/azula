@@ -1,3 +1,5 @@
+package "examples";
+
 // Fizzbuzz is a very common interview problem, or at least used to be...
 func fizz_buzz(int start, int end): void {
     while(start <= end) {

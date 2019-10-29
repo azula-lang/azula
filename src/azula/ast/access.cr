@@ -4,14 +4,14 @@ require "../token"
 module Azula
     module AST
 
-        # Struct access expression is used to get a value from a struct instance.
-        class StructAccess < Expression
+        # Access expression is used to access something in an identifier.
+        class Access < Expression
 
             @token : Token
-            @struct_exp : Expression
-            @field : Expression
+            @left_exp : Expression
+            @access_field : Expression
 
-            def initialize(@token, @struct_exp, @field)   
+            def initialize(@token, @left_exp, @access_field)   
             end
 
             # The literal token representation of this node.
@@ -21,15 +21,15 @@ module Azula
 
             # The literal string representation of this node.
             def to_string : String
-                return "(#{struct_exp.to_string}.#{field.to_string})"
+                return "(#{left_exp.to_string}.#{access_field.to_string})"
             end
 
             # Get the `Token` in this node.
             getter token
             # The `Struct` that the field will be accessed in.
-            getter struct_exp
+            getter left_exp
             # The field to be accessed inside the `Struct`.
-            getter field
+            getter access_field
 
         end
     end

@@ -31,14 +31,17 @@ module Azula
 
                     if node.function_name.ident == "println"
                         args.each do |arg|
-                            compiler.builder.call compiler.print_funcs[arg.type], arg
+                            compiler.builder.call compiler.print_funcs[arg.type.to_s], arg
                             compiler.builder.call compiler.builtin_printfunc, [compiler.builder.global_string_pointer(" ")]
                         end
                         compiler.builder.call compiler.builtin_printfunc, [compiler.builder.global_string_pointer("%c"), compiler.context.int32.const_int(10)]
                         return
                     end
 
-                    return compiler.builder.call compiler.main_module.functions[node.function_name.ident], args
+                    if compiler.access == "external"
+                        return compiler.builder.call compiler.main_module.functions[node.function_name.ident], args
+                    end
+                    return compiler.builder.call compiler.main_module.functions[(compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + node.function_name.ident], args
                 end
 
             end

@@ -35,11 +35,12 @@ module Azula
 
                     assign_type : LLVM::Type? = nil
                     if ident.type.main_type == Types::TypeEnum::POINTER
-                        assign_type = compiler.types.fetch ident.type.secondary_type, nil
+                        assign_type = compiler.types.fetch ident.type.secondary_type.not_nil!.main_type, nil
                         if assign_type.nil?
-                            assign_type = compiler.structs.fetch ident.type.secondary_type, nil
+                            puts ident.type.secondary_type.not_nil!.main_type
+                            assign_type = compiler.structs.fetch ident.type.secondary_type.not_nil!.main_type, nil
                             if assign_type.nil?
-                                ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type.not_nil!.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
                                 return
                             end
                         end

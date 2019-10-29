@@ -1,9 +1,12 @@
-extern func sleep(int x): int;
-extern func time(int x): int;
+package "examples";
+
+import {
+	"os"
+}
 
 func main(): void {
-	int seconds = time(0);
+	int seconds = os.time();
 	println("Starting...");
-	sleep(5);
-	println(time(0) - seconds, "seconds to run.");
+	os.sleep(5);
+	println(os.time() - seconds, "seconds to run.");
 }

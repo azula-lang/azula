@@ -8,6 +8,15 @@ require "../errors/*"
 module Azula
     module Compiler
 
+        class AzlFunction
+            def initialize(@name : String, @args : Array(LLVM::Type), @return_type : LLVM::Type)
+            end
+
+            getter name
+            getter args
+            getter return_type
+        end
+
         class Compiler
 
             @context : LLVM::Context
@@ -28,10 +37,18 @@ module Azula
 
             @string_type : LLVM::Type
 
-            @print_funcs = {} of LLVM::Type=>LLVM::Function
+            @print_funcs = {} of String=>LLVM::Function
             @builtin_printfunc : LLVM::Function
 
             @current_loop_cond : LLVM::BasicBlock? = nil
+
+            @functions: Array(AzlFunction) = [] of AzlFunction
+
+            @package_name : String? = nil
+
+            @access : String? = nil
+
+            @imports : Array(String) = [] of String
 
             getter context
             getter main_module
@@ -47,13 +64,22 @@ module Azula
             getter structs
             getter struct_fields
 
+            getter functions
+            getter imports
+
             setter builder
             setter current_func
             setter has_return
             getter current_loop_cond
             setter current_loop_cond
 
-            def initialize
+            getter package_name
+            setter package_name
+
+            getter access
+            setter access
+
+            def initialize(std : Bool = false)
                 @context = LLVM::Context.new
                 @main_module = @context.new_module "main_module"
                 @builder = @context.new_builder
@@ -72,7 +98,11 @@ module Azula
 
                 @builtin_printfunc = @main_module.functions.add("printf", [@context.void_pointer], @context.int32, true)
 
-                add_builtins
+                if !std
+                    load_builtins
+                else
+                    add_builtins
+                end
             end
 
             # Macro that registers each subclass of Visitor against the Node it is meant to visit
@@ -90,6 +120,11 @@ module Azula
                     linenumber = 0
                     colnumber = 0
                     ErrorManager.add_error Error.new "unknown node found #{node}", file, linenumber, colnumber
+                    return
+                end
+                if node.class != AST::Program && node.class != AST::Package && @package_name == nil
+                    puts node.class
+                    ErrorManager.add_error Error.new "file missing package declaration", "unknown", 0, 0
                     return
                 end
                 return visitor.run self, node
@@ -114,14 +149,44 @@ module Azula
 
             # Create an executable file using clang.
             def create_executable(file : String)
+                create_std_lib
                 LLVM.init_x86
                 target = LLVM::Target.from_triple(LLVM.default_target_triple)
                 machine = target.create_target_machine LLVM.default_target_triple
                 machine.emit_obj_to_file @main_module, "#{file}.o"
 
-                system "clang -o #{file} -lstdc++ -static #{file}.o"
+                obj_files = [] of String
+                @imports.each do |i|
+                    obj_files << i + ".o"
+                end
+
+                system "clang -o #{file} -lstdc++ -static #{file}.o #{obj_files.join(" ")} -lm"
 
                 File.delete "#{file}.o"
+                obj_files.each do |o|
+                    File.delete o
+                end
+            end
+
+            # Create an object file using clang.
+            def create_object_file(file : String)
+                LLVM.init_x86
+                target = LLVM::Target.from_triple(LLVM.default_target_triple)
+                machine = target.create_target_machine LLVM.default_target_triple
+                machine.emit_obj_to_file @main_module, "#{file}.o"
+            end
+
+            def create_std_lib
+                c = Azula::Compiler::Compiler.new true
+                c.register_visitors
+                c.compile AST::Program.new [] of AST::Statement
+
+                c.functions.each do |f|
+                    @main_module.functions.add(f.name, f.args, f.return_type)
+                end
+
+                c.create_object_file "std"
+                @imports << "std"
             end
 
             def get_pointer(type : Types::Type)

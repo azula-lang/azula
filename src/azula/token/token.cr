@@ -89,6 +89,11 @@ module Azula
         # Continue
         CONTINUE
 
+        # Import statement
+        IMPORT
+        # Package declaration
+        PACKAGE
+
         # While loop
         WHILE
 
@@ -154,6 +159,9 @@ module Azula
         "as" => TokenType::AS,
 
         "struct" => TokenType::STRUCT,
+
+        "import" => TokenType::IMPORT,
+        "package" => TokenType::PACKAGE,
 
         "true" => TokenType::TRUE,
         "false" => TokenType::FALSE,

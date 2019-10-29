@@ -19,7 +19,7 @@ module Azula
             @@Errors.each do |e|
                 puts "#{"ERROR".colorize(:red)} #{e.content} \nFile #{e.filename.colorize(:blue)} (line #{e.line}, character #{e.col})\n"
                 puts "#{@@Code[e.line]}"
-                puts "#{(" " * (e.col - 1))}#{"^".colorize(:red)}"
+                puts "#{(" " * (e.col - 1 < 0 ? e.col : e.col - 1))}#{"^".colorize(:red)}"
             end
         end
 
