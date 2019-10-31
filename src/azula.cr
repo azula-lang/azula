@@ -19,7 +19,7 @@ type_check = true
 OptionParser.parse do |parser|
     parser.banner = "Usage: azula run [arguments]"
     parser.on("-nt", "--no-typecheck", "Disable type checking") { type_check = false }
-  end
+end
 
 puts "#{"Azula".colorize(Colorize::ColorRGB.new(253, 117, 155))}" + " Version #{VERSION}\n"
 
