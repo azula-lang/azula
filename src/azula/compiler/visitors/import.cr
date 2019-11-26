@@ -18,7 +18,9 @@ module Azula
                     end
                     
                     node.imports.each do |import|
-                        add_import "src/azula/std/#{import}/#{import}.azl", compiler
+                        Dir.glob("src/azula/std/#{import}/*.azl").each do |s|
+                            add_import "#{s}", compiler
+                        end
                     end
                     return nil
                 end
