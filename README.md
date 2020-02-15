@@ -15,7 +15,7 @@ Azula is currently working at a basic level. Azula code can be compiled to a bin
 
 ### Installing
 
-Clone the repository, run `crystal build src/azula.cr`. Copy the compiled binary to the `/usr/bin` folder.
+Clone the repository, run the `install.sh` script.
 
 ### Origin
 
