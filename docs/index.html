@@ -1,20 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="generator" content="Crystal Docs 0.31.1">
+<meta name="generator" content="Crystal Docs 0.32.0">
 
-
-<link href="css/style.css" rel="stylesheet" type="text/css">
-
+<link href="css/style.css" rel="stylesheet" type="text/css" />
 <script type="text/javascript" src="js/doc.js"></script>
-<script type="text/javascript">
-  CrystalDoc.base_path = "";
-</script>
+
+<svg class="hidden">
+  <symbol id="octicon-link" viewBox="0 0 16 16">
+    <path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path>
+  </symbol>
+</svg>
 
   <meta id="repository-name" content="github.com/azula-lang/azula">
   <title>README - github.com/azula-lang/azula</title>
+  <script type="text/javascript">
+  CrystalDoc.base_path = "";
+  </script>
 </head>
 <body>
 
@@ -448,7 +452,11 @@
 
 
 <div class="main-content">
-<h2>Azula</h2>
+<h2><a id="azula" class="anchor" href="#azula">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Azula</h2>
 
 <p>Azula is a strongly-typed compiled language, using an LLVM backend, with the following goals:</p>
 
@@ -458,15 +466,43 @@
 
 <p><a href="https://discord.gg/Hkx8XnB" target="_blank">Discord</a></p>
 
-<h3>Origin</h3>
+<h3><a id="current-state-of-azula" class="anchor" href="#current-state-of-azula">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Current State of Azula</h3>
+
+<p>Azula is currently working at a basic level. Azula code can be compiled to a binary with support for packages and imports. All of the examples in the <a href="https://github.com/azula-lang/azula/tree/master/examples" target="_blank">examples</a> folder are runnable. Azula is still missing some base features and a standard library - something I hope to fix soon.</p>
+
+<h3><a id="installing" class="anchor" href="#installing">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Installing</h3>
+
+<p>Clone the repository, run <code>crystal build src/azula.cr</code>. Copy the compiled binary to the <code>/usr/bin</code> folder.</p>
+
+<h3><a id="origin" class="anchor" href="#origin">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Origin</h3>
 
 <p>Azula started as a learning exercise through the <a href="https://interpreterbook.com" target="_blank">Writing a Interpreter in Go</a> and <a href="https://compilerbook.com" target="_blank">Writing a Compiler in Go</a> books by Thorsten Ball. As I reached the end of the compiler, rather than expanding the VM for Azula, I decided compiling to LLVM would make the language far more usable. Rather than attempting to change the version written in Go, I decided to rewrite Azula from scratch in Crystal.</p>
 
-<h3>Goals</h3>
+<h3><a id="goals" class="anchor" href="#goals">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Goals</h3>
 
 <ul><li>~~Tokenizer~~</li><li>~~Lexer~~</li><li>~~Parser~~</li><li>Compiler</li><li>Write documentation in code</li><li>Compiler Optimization</li><li>Standard Library</li><li>Self-hosting compiler</li></ul>
 
-<h2>Compiling</h2>
+<h2><a id="compiling-your-code" class="anchor" href="#compiling-your-code">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Compiling Your Code</h2>
 
 <pre><code>azula build <span class="t">FILENAME</span></code></pre>
 
@@ -478,7 +514,11 @@
 
 <pre><code>azula llir <span class="t">FILENAME</span></code></pre>
 
-<h3>Example Code</h3>
+<h3><a id="example-code" class="anchor" href="#example-code">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Example Code</h3>
 
 <pre><code>func fib(int x): int {
     <span class="k">if</span>(x <span class="o">==</span> <span class="n">0</span> or x <span class="o">==</span> <span class="n">1</span>) {
@@ -491,7 +531,11 @@ func main(): void {
     println(fib(<span class="n">15</span>));
 }</code></pre>
 
-<h2>Contributors</h2>
+<h2><a id="contributors" class="anchor" href="#contributors">
+  <svg class="octicon-link" aria-hidden="true">
+    <use href="#octicon-link"/>
+  </svg>
+</a>Contributors</h2>
 
 <ul><li><a href="https://github.com/OisinA" target="_blank">OisinA</a></li></ul>
 </div>
