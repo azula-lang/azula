@@ -16,16 +16,28 @@ module Azula
                     if node.nil?
                         return
                     end
+
+                    if !Dir.exists?(".build")
+                        Dir.mkdir ".build"
+                    end
                     
                     node.imports.each do |import|
-                        Dir.glob("src/azula/std/#{import}/*.azl").each do |s|
-                            add_import "#{s}", compiler
+                        if Dir.exists?("/usr/lib/azula/sources/#{import}/")
+                            Dir.glob("/usr/lib/azula/sources/#{import}/*.azl").each do |s|
+                                add_import import, "#{s}", compiler
+                            end
+                        elsif Dir.exists?("./#{import}/")
+                            Dir.glob("#{compiler.project_top}/#{import}/*.azl").each do |s|
+                                add_import import, "#{s}", compiler
+                            end
+                        else
+                            ErrorManager.add_error Error.new "unknown import \"#{import}\"", node.token.file, node.token.linenumber, node.token.charnumber
                         end
                     end
                     return nil
                 end
 
-                def add_import(import : String, compiler : Compiler)
+                def add_import(name : String, import : String, compiler : Compiler)
                     content = File.read import
                     l = Azula::Lexer.new content
                     l.file = import
@@ -34,6 +46,7 @@ module Azula
     
                     c = Azula::Compiler::Compiler.new
                     c.register_visitors
+                    c.project_top = compiler.project_top
                     c.compile smt
     
                     c.functions.each do |f|
@@ -48,8 +61,8 @@ module Azula
                         compiler.struct_fields[s] = c.struct_fields[s]
                     end
     
-                    c.create_object_file "#{import}"
-                    compiler.imports << import
+                    c.create_object_file "#{compiler.project_top}/.build/#{name}"
+                    compiler.imports << name
                 end
             end
 

@@ -11,7 +11,7 @@ require "colorize"
 module Azula
 end
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 PROMPT = ">> "
 
 type_check = true

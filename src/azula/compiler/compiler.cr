@@ -50,6 +50,8 @@ module Azula
 
             @imports : Array(String) = [] of String
 
+            @project_top : String
+
             getter context
             getter main_module
             getter builder
@@ -79,10 +81,14 @@ module Azula
             getter access
             setter access
 
+            getter project_top
+            setter project_top
+
             def initialize(std : Bool = false)
                 @context = LLVM::Context.new
                 @main_module = @context.new_module "main_module"
                 @builder = @context.new_builder
+                @project_top = Dir.current
 
                 @string_type = @context.struct([@context.int8.pointer, @context.int32, @context.int32], "String")
                 @types = {
@@ -148,12 +154,12 @@ module Azula
 
             # Create an executable file using clang.
             def create_executable(file : String)
-                Dir.mkdir ".build"
+                if !Dir.exists?(".build")
+                    Dir.mkdir ".build"
+                end
                 create_std_lib
-                LLVM.init_x86
-                target = LLVM::Target.from_triple(LLVM.default_target_triple)
-                machine = target.create_target_machine LLVM.default_target_triple
-                machine.emit_obj_to_file @main_module, ".build/#{file}.o"
+                
+                create_object_file ".build/#{file}"
 
                 obj_files = [] of String
                 @imports.each do |i|
@@ -164,7 +170,7 @@ module Azula
 
                 File.delete ".build/#{file}.o"
                 obj_files.each do |o|
-                    File.delete o
+                    File.delete "#{o}"
                 end
                 Dir.rmdir ".build"
             end
@@ -174,7 +180,7 @@ module Azula
                 LLVM.init_x86
                 target = LLVM::Target.from_triple(LLVM.default_target_triple)
                 machine = target.create_target_machine LLVM.default_target_triple
-                machine.emit_obj_to_file @main_module, ".build/#{file}.o"
+                machine.emit_obj_to_file @main_module, "#{file}.o"
             end
 
             def create_std_lib
@@ -186,7 +192,7 @@ module Azula
                     @main_module.functions.add(f.name, f.args, f.return_type)
                 end
 
-                c.create_object_file "std"
+                c.create_object_file ".build/std"
                 @imports << "std"
             end
 

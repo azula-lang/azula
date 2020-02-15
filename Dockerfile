@@ -8,6 +8,6 @@ RUN ln -s /usr/bin/clang-8 /usr/local/bin/clang
 RUN ln -s /usr/bin/llvm-config-8 /usr/local/bin/llvm-config
 WORKDIR /azula
 COPY . .
-RUN shards build
+RUN ./install.sh
 WORKDIR /azula/wd
-ENTRYPOINT ["/azula/bin/Azula"]
+ENTRYPOINT ["azula"]
