@@ -148,23 +148,25 @@ module Azula
 
             # Create an executable file using clang.
             def create_executable(file : String)
+                Dir.mkdir ".build"
                 create_std_lib
                 LLVM.init_x86
                 target = LLVM::Target.from_triple(LLVM.default_target_triple)
                 machine = target.create_target_machine LLVM.default_target_triple
-                machine.emit_obj_to_file @main_module, "#{file}.o"
+                machine.emit_obj_to_file @main_module, ".build/#{file}.o"
 
                 obj_files = [] of String
                 @imports.each do |i|
-                    obj_files << i + ".o"
+                    obj_files << ".build/" + i + ".o"
                 end
 
-                system "clang -o #{file} -lstdc++ -static #{file}.o #{obj_files.join(" ")} -lm"
+                system "clang -o #{file} -lstdc++ -static .build/#{file}.o #{obj_files.join(" ")} -lm"
 
-                File.delete "#{file}.o"
+                File.delete ".build/#{file}.o"
                 obj_files.each do |o|
                     File.delete o
                 end
+                Dir.rmdir ".build"
             end
 
             # Create an object file using clang.
@@ -172,7 +174,7 @@ module Azula
                 LLVM.init_x86
                 target = LLVM::Target.from_triple(LLVM.default_target_triple)
                 machine = target.create_target_machine LLVM.default_target_triple
-                machine.emit_obj_to_file @main_module, "#{file}.o"
+                machine.emit_obj_to_file @main_module, ".build/#{file}.o"
             end
 
             def create_std_lib
