@@ -36,15 +36,15 @@ end
 module Azula
 
     enum OperatorPrecedence
-        LOWEST,
-        COMPARISON,
-        EQUALS,
-        LESS_GREATER,
-        SUM,
-        PRODUCT,
-        PREFIX,
-        CALL,
-        ACCESS,
+        LOWEST
+        COMPARISON
+        EQUALS
+        LESS_GREATER
+        SUM
+        PRODUCT
+        PREFIX
+        CALL
+        ACCESS
     end
 
     Precedences = {
