@@ -33,35 +33,40 @@ module Azula
                         return
                     end
 
-                    assign_type : LLVM::Type? = nil
-                    if ident.type.main_type == Types::TypeEnum::POINTER
-                        assign_type = compiler.types.fetch ident.type.secondary_type.not_nil!.main_type, nil
-                        if assign_type.nil?
-                            name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.secondary_type.not_nil!.main_type.as(String)
-                            assign_type = compiler.structs.fetch name, nil
-                            if assign_type.nil?
-                                ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type.not_nil!.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
-                                return
-                            end
-                        end
-                        assign_type = assign_type.pointer
-                    elsif ident.type.main_type == Types::TypeEnum::ARRAY
-                        assign_type = compiler.array_type(ident.type.secondary_type.not_nil!, 10).array(0).pointer
+                    var = false
+                    if ident.type.main_type == "var"
+                        var = true
                     else
-                        # Get type of vars to be assigned
-                        assign_type = compiler.types.fetch ident.type.main_type, nil
-                        if assign_type.nil?
-                            name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.main_type.as(String)
-                            assign_type = compiler.structs.fetch name, nil
+                        assign_type : LLVM::Type? = nil
+                        if ident.type.main_type == Types::TypeEnum::POINTER
+                            assign_type = compiler.types.fetch ident.type.secondary_type.not_nil!.main_type, nil
                             if assign_type.nil?
-                                ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
-                                return
+                                name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.secondary_type.not_nil!.main_type.as(String)
+                                assign_type = compiler.structs.fetch name, nil
+                                if assign_type.nil?
+                                    ErrorManager.add_error Error.new "could not find type '#{ident.type.secondary_type.not_nil!.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                    return
+                                end
+                            end
+                            assign_type = assign_type.pointer
+                        elsif ident.type.main_type == Types::TypeEnum::ARRAY
+                            assign_type = compiler.array_type(ident.type.secondary_type.not_nil!, 10).array(0).pointer
+                        else
+                            # Get type of vars to be assigned
+                            assign_type = compiler.types.fetch ident.type.main_type, nil
+                            if assign_type.nil?
+                                name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.main_type.as(String)
+                                assign_type = compiler.structs.fetch name, nil
+                                if assign_type.nil?
+                                    ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                    return
+                                end
                             end
                         end
-                    end
-                    if assign_type.nil?
-                        ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type.main_type}'.", node.token.file, node.token.linenumber, node.token.charnumber
-                        return
+                        if assign_type.nil?
+                            ErrorManager.add_error Error.new "error assigning type. Could not find '#{ident.type.main_type}'.", node.token.file, node.token.linenumber, node.token.charnumber
+                            return
+                        end
                     end
 
                     # Compile value of assign statement
@@ -74,8 +79,15 @@ module Azula
                         return
                     end
 
+                    if var
+                        assign_type = val.type
+                        if assign_type.kind.struct?
+                            assign_type = compiler.last_struct
+                        end
+                    end
+
                     # Create allocation for variable
-                    ptr = compiler.builder.alloca assign_type, ident.ident
+                    ptr = compiler.builder.alloca assign_type.not_nil!, ident.ident
                     compiler.vars[ident.ident] = ptr
                     compiler.builder.store val.not_nil!.to_unsafe, ptr
 
@@ -83,7 +95,7 @@ module Azula
                     (node.values.size - 1).times do |index|
                         val = compiler.compile node.values[index + 1]
                         ident = node.idents[index + 1].as?(AST::Identifier)
-                        ptr = compiler.builder.alloca assign_type, ident.not_nil!.ident
+                        ptr = compiler.builder.alloca assign_type.not_nil!, ident.not_nil!.ident
                         compiler.vars[ident.not_nil!.ident] = ptr
                         compiler.builder.store val.not_nil!.to_unsafe, ptr
                     end

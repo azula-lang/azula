@@ -68,6 +68,7 @@ module Azula
                         end
                     end
                     val = struc.context.const_struct(vals)
+                    compiler.last_struct = struc
                     return val
                 end
 

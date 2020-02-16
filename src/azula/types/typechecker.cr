@@ -138,6 +138,10 @@ module Azula
                     end
                     ident_type = self.check(node.idents[0]).not_nil!
                     val_types.size.times do |i|
+                        if ident_type.main_type == "var"
+                            ident_type = val_types[i]
+                            next
+                        end
                         if !compare_type val_types[i], ident_type
                             self.add_error "incorrect value in assign statement, trying to assign #{val_types[i].main_type} to variable of type #{ident_type.main_type}", node.token
                             return Type.new TypeEnum::VOID
@@ -183,8 +187,10 @@ module Azula
                     return_if_nil body_return
 
                     if !compare_type body_return, node.return_type
-                        self.add_error "cannot return #{body_return.main_type}, requires #{node.return_type.main_type}", node.token
-                        return
+                        if node.return_type.main_type != "any"    
+                            self.add_error "cannot return #{body_return.main_type}, requires #{node.return_type.main_type}", node.token
+                            return
+                        end
                     end
 
                     @variables = old_vars

@@ -51,6 +51,7 @@ module Azula
             @imports : Array(String) = [] of String
 
             @project_top : String
+            @last_struct : LLVM::Type? = nil
 
             getter context
             getter main_module
@@ -83,6 +84,8 @@ module Azula
 
             getter project_top
             setter project_top
+            getter last_struct
+            setter last_struct
 
             def initialize(std : Bool = false)
                 @context = LLVM::Context.new

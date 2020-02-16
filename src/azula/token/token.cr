@@ -35,6 +35,9 @@ module Azula
         # Used to declare an external function
         EXTERN
 
+        # Used to infer the type of a variable
+        VAR
+
         # True
         TRUE
         # False
@@ -149,6 +152,9 @@ module Azula
         "error" => TokenType::TYPE,
         "void" => TokenType::TYPE,
         "array" => TokenType::TYPE,
+        "any" => TokenType::TYPE,
+
+        "var" => TokenType::VAR,
 
         "func" => TokenType::FUNCTION,
         "return" => TokenType::RETURN,

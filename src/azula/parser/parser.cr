@@ -147,6 +147,8 @@ module Azula
             case @current_token.type
             when TokenType::TYPE
                 return self.parse_assign_statement
+            when TokenType::VAR
+                return self.parse_assign_statement
             when TokenType::IDENTIFIER
                 if @peek_token.type == TokenType::ASSIGN
                     return self.parse_assign_statement
