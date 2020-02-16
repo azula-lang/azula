@@ -54,6 +54,11 @@ describe Azula::Compiler do
             compile_and_run(input).should eq "5 10"
         end
 
+        it "var" do
+            input = wrap_main("var x, y = 5, 10; println(x + y);", "void")
+            run(input).not_nil!.should eq "15"
+        end
+
     end
 
 end
