@@ -40,7 +40,7 @@ module Azula
                         fields = compiler.struct_fields[struc.type.struct_name.not_nil!]
                         field = fields.fetch node.access_field.as(Azula::AST::Identifier).ident, nil
                         if field.nil?
-                            puts "invalid field"
+                            ErrorManager.add_error Error.new "unknown field access: '#{node.access_field.as(Azula::AST::Identifier).ident}'.", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
 

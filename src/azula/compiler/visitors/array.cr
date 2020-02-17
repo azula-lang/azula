@@ -16,7 +16,7 @@ module Azula
                         return
                     end
                     
-                    array_type = compiler.array_type node.type, node.values.size
+                    # array_type = compiler.array_type node.type, node.values.size
                     values = [] of LLVM::Value
                     node.values.each do |v|
                         v = compiler.compile v
@@ -25,6 +25,7 @@ module Azula
                         end
                         values << v
                     end
+                    array_type = values[0].type
                     alloca = compiler.builder.alloca array_type.array(values.size)
                     array = array_type.const_array(values)
                     compiler.builder.store array, alloca
