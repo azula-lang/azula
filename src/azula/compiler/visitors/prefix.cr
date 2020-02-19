@@ -18,16 +18,13 @@ module Azula
                     end
 
                     if node.operator == "*"
-                        right = node.right.as?(AST::Identifier)
+                        compiler.pointer = true
+                        right = compiler.compile(node.right)
                         if right.nil?
                             return
                         end
-                        ptr = compiler.vars.fetch right.ident, nil
-                        if ptr.nil?
-                            ErrorManager.add_error Error.new "variable not defined '#{right.ident}'", node.token.file, node.token.linenumber, node.token.charnumber
-                            return
-                        end
-                        return ptr
+                        compiler.pointer = false
+                        return right
                     end
 
                     right = compiler.compile(node.right)

@@ -156,6 +156,10 @@ module Azula
                     return self.parse_assign_statement
                 elsif @peek_token.type == TokenType::ASTERISK
                     return self.parse_assign_statement
+                # else
+                #     self.next_token
+                #     self.next_token
+                #     return self.parse_assign_statement
                 end
             when TokenType::RETURN
                 return self.parse_return_statement
@@ -164,7 +168,11 @@ module Azula
             when TokenType::FUNCTION
                 return self.parse_function_statement
             when TokenType::EXTERN
-                return self.parse_external_function
+                if @peek_token.type == TokenType::FUNCTION
+                    return self.parse_external_function
+                elsif @peek_token.type == TokenType::STRUCT
+                    return self.parse_external_struct
+                end
             when TokenType::STRUCT
                 return self.parse_struct
             when TokenType::IMPORT
@@ -222,8 +230,8 @@ module Azula
                 return true
             end
             if t == TokenType::SEMICOLON
-                ErrorManager.add_error Error.new "expected semicolon", @current_token.file, @current_token.linenumber, @current_token.charnumber+1
-                return false
+                # ErrorManager.add_error Error.new "expected semicolon", @current_token.file, @current_token.linenumber, @current_token.charnumber+1
+                return true
             end
             ErrorManager.add_error Error.new "expected next token to be #{t}, got #{@peek_token.type} instead", @current_token.file, @current_token.linenumber, @current_token.charnumber+1
             return false
@@ -514,6 +522,18 @@ module Azula
             return AST::ExternFunction.new tok, name, params, return_type
         end
 
+        # Parse an external struct
+        def parse_external_struct : AST::ExternStruct?
+            tok = @current_token
+            self.next_token
+            self.next_token
+            name = AST::Identifier.new @current_token, @current_token.literal
+
+            expect_peek_return SEMICOLON
+
+            return AST::ExternStruct.new tok, name
+        end
+
         # Parse the parameters of a function, returning a list of TypedIdentifiers
         def parse_function_parameters : Array(AST::TypedIdentifier)?
             idents = [] of AST::TypedIdentifier
@@ -545,6 +565,11 @@ module Azula
 
         # Parse the return type of a function
         def parse_function_return_type : Types::Type?
+            if @peek_token.type == TokenType::ASTERISK
+                type = Types::Type.type_from_string @current_token.literal
+                self.next_token
+                return Types::Type.new(Types::TypeEnum::POINTER, type)
+            end
             return Types::Type.type_from_string @current_token.literal
         end
 

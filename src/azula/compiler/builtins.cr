@@ -82,6 +82,10 @@ module Azula
                 add_builtin_func("cstring_conv", string_cstring)
                 cstring_string = @main_module.functions.add("string_conv", [@context.int8.pointer], @string_type.pointer, true)
                 add_builtin_func("string_conv", cstring_string)
+
+                llvm_struct = LibLLVM.struct_create_named(@context.to_unsafe, "FILE")
+                the_struct = LLVM::Type.new llvm_struct
+                @structs["File"] = the_struct.pointer
             end
 
             # Register the various print functions

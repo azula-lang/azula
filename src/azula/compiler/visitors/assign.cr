@@ -58,8 +58,11 @@ module Azula
                                 name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + ident.type.main_type.as(String)
                                 assign_type = compiler.structs.fetch name, nil
                                 if assign_type.nil?
-                                    ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
-                                    return
+                                    assign_type = compiler.structs.fetch ident.type.main_type.as(String), nil
+                                    if assign_type.nil?
+                                        ErrorManager.add_error Error.new "could not find type '#{ident.type.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                        return
+                                    end
                                 end
                             end
                         end

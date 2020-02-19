@@ -26,6 +26,9 @@ module Azula
                             ErrorManager.add_error Error.new "could not compile value", node.token.file, node.token.linenumber, node.token.charnumber
                             return
                         end
+                        # if val.type.kind == LLVM::Type::Kind::Pointer
+                        #     val = compiler.builder.load val
+                        # end
                         args << val
                     end
 

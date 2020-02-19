@@ -50,10 +50,27 @@ module Azula
                     # Get the return type of the function
                     return_type = compiler.types.fetch node.return_type.main_type, nil
                     if return_type.nil?
-                        return_type = compiler.structs.fetch node.return_type.main_type, nil
-                        if return_type.nil?
-                            ErrorManager.add_error Error.new "could not find type #{node.return_type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
-                            return
+                        if node.return_type.main_type == Types::TypeEnum::POINTER
+                            return_type = compiler.types.fetch node.return_type.secondary_type.not_nil!.main_type, nil
+                            if return_type.nil?
+                                if compiler.access == "external"
+                                    name = node.return_type.secondary_type.not_nil!.main_type.as(String)
+                                else
+                                    name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + node.return_type.secondary_type.not_nil!.main_type.as(String)
+                                end
+                                return_type = compiler.structs.fetch name, nil
+                                if return_type.nil?
+                                    ErrorManager.add_error Error.new "could not find type '#{node.return_type.secondary_type.not_nil!.main_type}'", node.token.file, node.token.linenumber, node.token.charnumber
+                                    return
+                                end
+                            end
+                            return_type = return_type.pointer
+                        else
+                            return_type = compiler.structs.fetch node.return_type.main_type, nil
+                            if return_type.nil?
+                                ErrorManager.add_error Error.new "could not find type #{node.return_type.main_type}", node.token.file, node.token.linenumber, node.token.charnumber
+                                return
+                            end
                         end
                     end
 

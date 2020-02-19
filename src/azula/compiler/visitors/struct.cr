@@ -54,10 +54,10 @@ module Azula
                         return
                     end
 
-                    name = (compiler.access == nil ? compiler.package_name.not_nil! : compiler.access.not_nil!) + "." + node.struct_name.ident
+                    name = (compiler.access == nil ? compiler.package_name.not_nil! + "." : (compiler.access == "external" ? "" : compiler.access.not_nil! + ".")) + node.struct_name.ident
                     struc = compiler.structs.fetch name, nil
                     if struc.nil?
-                        puts "unknown struct"
+                        ErrorManager.add_error Error.new "unknown struct: '#{name}'.", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
                     vals = [] of LLVM::Value

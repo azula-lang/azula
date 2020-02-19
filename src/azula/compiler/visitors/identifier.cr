@@ -21,7 +21,11 @@ module Azula
                         ErrorManager.add_error Error.new "variable not defined '#{node.ident}'", node.token.file, node.token.linenumber, node.token.charnumber
                         return
                     end
-                    return compiler.builder.load ptr
+                    if !compiler.pointer
+                        return compiler.builder.load ptr
+                    else
+                        return ptr
+                    end
                 end
 
             end

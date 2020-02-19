@@ -47,6 +47,7 @@ module Azula
             @package_name : String? = nil
 
             @access : String? = nil
+            @pointer : Bool = false
 
             @imports : Array(String) = [] of String
 
@@ -81,6 +82,8 @@ module Azula
 
             getter access
             setter access
+            getter pointer
+            setter pointer
 
             getter project_top
             setter project_top
