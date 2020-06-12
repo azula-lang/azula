@@ -3,7 +3,7 @@ require "../ast/*"
 require "llvm"
 require "../types"
 require "./builtins"
-require "../errors/*"
+require "../errors"
 
 module Azula
     module Compiler
@@ -54,41 +54,9 @@ module Azula
             @project_top : String
             @last_struct : LLVM::Type? = nil
 
-            getter context
-            getter main_module
-            getter builder
-            getter current_func
-            getter vars
-            getter has_return
-            getter types
-            getter string_type
-            getter print_funcs
-            getter builtin_printfunc
+            getter context, main_module, vars, types, string_type, print_funcs, builtin_printfunc, structs, struct_fields, functions, imports
 
-            getter structs
-            getter struct_fields
-
-            getter functions
-            getter imports
-
-            setter builder
-            setter current_func
-            setter has_return
-            getter current_loop_cond
-            setter current_loop_cond
-
-            getter package_name
-            setter package_name
-
-            getter access
-            setter access
-            getter pointer
-            setter pointer
-
-            getter project_top
-            setter project_top
-            getter last_struct
-            setter last_struct
+            property builder, current_func, has_return, current_loop_cond, package_name, access, pointer, project_top, last_struct
 
             def initialize(std : Bool = false)
                 @context = LLVM::Context.new

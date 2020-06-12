@@ -1,6 +1,6 @@
 require "../ast/*"
 require "../token"
-require "../errors/*"
+require "../errors"
 
 macro return_if_nil(val)
     if {{val}}.nil?

@@ -1,7 +1,7 @@
 require "./visitor"
 require "../../ast/*"
 require "../compiler"
-require "../../errors/*"
+require "../../errors"
 
 module Azula
     module Compiler

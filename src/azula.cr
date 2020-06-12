@@ -1,8 +1,8 @@
-require "./azula/lexer/"
-require "./azula/parser/"
+require "./azula/lexer"
+require "./azula/parser"
 require "./azula/types/"
 require "./azula/compiler/"
-require "./azula/errors/"
+require "./azula/errors"
 
 require "option_parser"
 require "colorize"

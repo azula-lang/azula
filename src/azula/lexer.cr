@@ -1,5 +1,5 @@
-require "../token/*"
-require "../errors/*"
+require "./token"
+require "./errors"
 
 module Azula
 
