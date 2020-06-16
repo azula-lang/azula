@@ -1,2 +1,5 @@
 require "spec"
-require "../src/azula/lexer"
+require "../src/parser/lexer"
+require "../src/parser/parser"
+require "../src/parser/token"
+require "../src/compiler/typechecker"
