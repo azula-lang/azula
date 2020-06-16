@@ -13,6 +13,9 @@ class Azula::Typechecker
     end
 
     def check(node : AST::Node) : Azula::Type
+        if @errors.size > 0
+            return VoidType.new
+        end
         case node
         when AST::Program
             check node.block
@@ -116,6 +119,16 @@ class Azula::Typechecker
                 end
                 return left
             when Azula::TokenType::Eq, Azula::TokenType::NotEq, Azula::TokenType::Lt, Azula::TokenType::LtEq, Azula::TokenType::Gt, Azula::TokenType::GtEq
+                if !left.is right
+                    @errors << Azula::Error.new "type mismatch for infix operator #{node.operator.literal}, #{left.to_s} != #{right.to_s}", Azula::ErrorType::Typechecking, node.token
+                    return Azula::VoidType.new
+                end
+                return Azula::BooleanType.new
+            when Azula::TokenType::Or, Azula::TokenType::And
+                if !left.is_a?(Azula::BooleanType) || !right.is_a?(Azula::BooleanType)
+                    @errors << Azula::Error.new "cannot perform operation on non-boolean", Azula::ErrorType::Typechecking, node.token
+                    return Azula::VoidType.new
+                end
                 return Azula::BooleanType.new
             else
                 return left

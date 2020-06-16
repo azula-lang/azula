@@ -131,7 +131,19 @@ class Azula::Lexer
         when '.'
             token_type, literal = TokenType::Dot, @current_char
         when '&'
-            token_type, literal = TokenType::Ampersand, @current_char
+            if self.peek_char == '&'
+                self.read_char
+                token_type, literal = TokenType::And, "&&"
+            else
+                token_type, literal = TokenType::Ampersand, @current_char
+            end
+        when '|'
+            if self.peek_char == '|'
+                self.read_char
+                token_type, literal = TokenType::Or, "||"
+            else
+                token_type, literal = TokenType::Pipe, @current_char
+            end
         when Char::ZERO
             token_type, literal = TokenType::EOF, @current_char
         else

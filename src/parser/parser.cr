@@ -75,6 +75,7 @@ class Azula::Parser
         register_prefix Identifier, parse_identifier
         register_prefix Return, parse_return
         register_prefix If, parse_if
+        register_prefix LBracket, parse_grouped_expression
 
         register_infix Plus, parse_infix_expression
         register_infix Minus, parse_infix_expression
@@ -91,6 +92,8 @@ class Azula::Parser
         register_infix LtEq, parse_infix_expression
         register_infix Gt, parse_infix_expression
         register_infix GtEq, parse_infix_expression
+        register_infix Or, parse_infix_expression
+        register_infix And, parse_infix_expression
         register_infix LBracket, parse_function_call
     end
 
@@ -108,6 +111,9 @@ class Azula::Parser
     def parse_block : AST::Block
         nodes = [] of AST::Node
         while @current_token.type != TokenType::EOF
+            if @errors.size > 0
+                return AST::Block.new(nodes)
+            end
             node = self.parse_statement
             # If parse_statement returns nil, something went wrong, assume error already returned
             if node.nil?
@@ -130,11 +136,6 @@ class Azula::Parser
         case @current_token.type
         when TokenType::Type
             return parse_assign_statement
-        when TokenType::LBracket
-            self.next_token
-            val = self.parse_statement
-            self.next_token
-            return val
         else
             exp = parse_expression
             if exp.nil?
@@ -153,6 +154,10 @@ class Azula::Parser
         end
 
         left = prefix.call
+        if left.nil?
+            @errors << Azula::Error.new "prefix function failed for #{@current_token.type}", Azula::ErrorType::Parsing, @peek_token
+            return
+        end
 
         while @peek_token.type != close && precedence < Precedences.fetch(@peek_token.type, OperatorPrecedence::LOWEST)
             infix = @infix_funcs.fetch @peek_token.type, nil
@@ -166,6 +171,20 @@ class Azula::Parser
         end
 
         return left
+    end
+
+    def parse_grouped_expression : AST::Node?
+        self.next_token
+        exp = self.parse_expression
+        
+        if @peek_token.type != TokenType::RBracket
+            @errors << Azula::Error.new "unexpected #{@peek_token.literal}, expected )", Azula::ErrorType::Parsing, @current_token
+            return
+        end
+
+        self.next_token
+
+        return exp
     end
 
     # Parse an assign statement in the form (int x = 10)
@@ -318,6 +337,10 @@ class Azula::Parser
 
         if @peek_token.type == TokenType::Semicolon
             self.next_token
+            return AST::Return.new return_token, nil
+        end
+
+        if @peek_token.type == TokenType::RBrace
             return AST::Return.new return_token, nil
         end
 

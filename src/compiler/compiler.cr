@@ -103,6 +103,7 @@ class Azula::Compiler
                 if !@has_return
                     builder.br end_block
                 end
+                @has_return = false
             end
 
             if node.false_block.nil?
@@ -115,6 +116,7 @@ class Azula::Compiler
                 if !@has_return
                     builder.br end_block
                 end
+                @has_return = false
             end
 
             builder.cond condition.raw_value.not_nil!, true_block, false_block
@@ -141,6 +143,10 @@ class Azula::Compiler
             return
         end
 
+        if function.identifier.value == "main"
+            return_type = @llvm_context.int32
+        end
+
         val : Azula::Value? = nil
 
         @main_module.functions.add(function.identifier.value, arguments, return_type) do |func|
@@ -159,7 +165,15 @@ class Azula::Compiler
                     last_val = compile node, @builder.not_nil!, func
                 end
                 if !@has_return
-                    builder.ret
+                    if last_val.nil? || last_val.is_a?(Azula::VoidType)
+                        if function.identifier.value == "main"
+                            @builder.not_nil!.ret @llvm_context.int32.const_int(0)
+                        else
+                            @builder.not_nil!.ret
+                        end
+                    else
+                        @builder.not_nil!.ret last_val.not_nil!.raw_value.not_nil!.to_unsafe
+                    end
                 end
                 @builder = old_builder
             end
@@ -236,6 +250,10 @@ class Azula::Compiler
             return Azula::Value.new(left.not_nil!.type, builder.icmp(LLVM::IntPredicate::SLT, right.not_nil!.raw_value.not_nil!, left.not_nil!.raw_value.not_nil!))
         when TokenType::GtEq
             return Azula::Value.new(left.not_nil!.type, builder.icmp(LLVM::IntPredicate::SLE, right.not_nil!.raw_value.not_nil!, left.not_nil!.raw_value.not_nil!))
+        when TokenType::Or
+            return Azula::Value.new(left.not_nil!.type, builder.or(right.not_nil!.raw_value.not_nil!, left.not_nil!.raw_value.not_nil!))
+        when TokenType::And
+            return Azula::Value.new(left.not_nil!.type, builder.and(right.not_nil!.raw_value.not_nil!, left.not_nil!.raw_value.not_nil!))
         else
             return
         end
@@ -285,6 +303,9 @@ class Azula::Value
 
     def initialize(@type : Azula::Type, @function : LLVM::Function?)
         @raw_value = nil
+    end
+
+    def initialize(@type : Azula::Type, @raw_value : LLVM::Value?, @function : LLVM::Function?)
     end
 
 end

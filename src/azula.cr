@@ -27,8 +27,8 @@ def main
     end
 
     program.optimise
-    program.create_executable("test", false)
     program.write_llvm("test.ll")
+    program.create_executable("test", false)
 end
 
 def print_errors(errors : Array(Azula::Error), code : String)
