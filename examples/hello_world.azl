@@ -1,7 +1,0 @@
-package "examples";
-
-
-// An example of printing Hello World in Azula
-func main(): void {
-    println("Hello World");
-}
