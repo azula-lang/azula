@@ -1,6 +1,6 @@
 ## Azula
 
-![build](https://img.shields.io/github/workflow/status/azula-lang/azula/Azula%20tests) ![chat](https://img.shields.io/discord/606118150655705088) ![issues](https://img.shields.io/github/issues/azula-lang/azula)
+![build](https://img.shields.io/github/workflow/status/azula-lang/azula/Azula%20tests) [![chat](https://img.shields.io/discord/606118150655705088)](https://discord.gg/Hkx8XnB) [![issues](https://img.shields.io/github/issues/azula-lang/azula)](https://github.com/azula-lang/azula/issues)
 
 Azula is a strongly-typed compiled language, using an LLVM backend, with the following goals:
 - Static typing
