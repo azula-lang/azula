@@ -11,17 +11,6 @@ Azula is a strongly-typed compiled language, using an LLVM backend, with the fol
 
 [Discord](https://discord.gg/Hkx8XnB)
 
-### Goals
-
-- ~~Tokenizer~~
-- ~~Lexer~~
-- ~~Parser~~
-- Compiler
-- Write documentation in code
-- Compiler Optimization
-- Standard Library
-- Self-hosting compiler
-
 ## Compiling Your Code
 ```
 azula build FILENAME

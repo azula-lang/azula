@@ -53,7 +53,7 @@ def main
         exit(0)
     end
 
-    program.create_executable(name, true)
+    program.create_executable(name, false)
 
     if ARGV[0] == "run"
         system "./#{name}"
