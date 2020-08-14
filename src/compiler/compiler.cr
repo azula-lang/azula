@@ -9,6 +9,7 @@ class Azula::Compiler
     @main_module : LLVM::Module
     @builder : LLVM::Builder?
     @has_return : Bool = false
+    @size : Int32 = 0
 
     def initialize
         @errors = [] of Azula::Error
@@ -35,7 +36,20 @@ class Azula::Compiler
         when AST::Assign
             compile_assign node, builder.not_nil!, function
         when AST::IntegerLiteral
-            return Azula::Value.new(Azula::IntegerType.new, @llvm_context.int32.const_int(node.value))
+            value : LLVM::Value? = nil
+            case @size
+            when 8
+                value = @llvm_context.int8.const_int(node.value)
+            when 16
+                value = @llvm_context.int16.const_int(node.value)
+            when 32
+                value = @llvm_context.int32.const_int(node.value)
+            when 64
+                value = @llvm_context.int64.const_int(node.value)
+            end
+            return Azula::Value.new(Azula::IntegerType.new, value.not_nil!)
+        when AST::FloatLiteral
+            return Azula::Value.new(Azula::FloatType.new, @llvm_context.float.const_double(node.value))
         when AST::BooleanLiteral
             return Azula::Value.new(Azula::BooleanType.new, @llvm_context.int1.const_int(node.value ? 1 : 0))
         when AST::StringLiteral
@@ -195,6 +209,10 @@ class Azula::Compiler
             end
         end
 
+        if assign.identifier.type.not_nil!.is_a?(IntegerType)
+            @size = assign.identifier.type.not_nil!.as(IntegerType).size
+        end
+
         value = compile assign.value, builder, function
         if value.nil?
             return
@@ -241,10 +259,19 @@ class Azula::Compiler
         end
         case infix.operator.type
         when TokenType::Plus
-            return Azula::Value.new(left.not_nil!.type, builder.add(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
+            case
+            when left.not_nil!.type.is(IntegerType.new)
+                return Azula::Value.new(left.not_nil!.type, builder.add(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
+            when left.not_nil!.type.is(FloatType.new)
+                return Azula::Value.new(left.not_nil!.type, builder.fadd(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
+            end
         when TokenType::Minus
-            return Azula::Value.new(left.not_nil!.type, builder.sub(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
-        when TokenType::Asterisk
+            case
+            when left.not_nil!.type.is(IntegerType.new)
+                return Azula::Value.new(left.not_nil!.type, builder.sub(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
+            when left.not_nil!.type.is(FloatType.new)
+                return Azula::Value.new(left.not_nil!.type, builder.fsub(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
+            end        when TokenType::Asterisk
             return Azula::Value.new(left.not_nil!.type, builder.mul(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))
         when TokenType::Slash
             return Azula::Value.new(left.not_nil!.type, builder.sdiv(left.not_nil!.raw_value.not_nil!, right.not_nil!.raw_value.not_nil!))

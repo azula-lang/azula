@@ -44,7 +44,7 @@ def main
         return
     end
 
-    program.optimise
+    # program.optimise
     
     name = File.basename(ARGV[1]).gsub(File.extname(ARGV[1]), "")
 
