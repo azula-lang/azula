@@ -186,10 +186,13 @@ class Azula::Compiler
     end
 
     def compile_assign(assign : AST::Assign, builder : LLVM::Builder, function : LLVM::Function?)
-        assign_type = azl_type_to_llvm assign.identifier.type.not_nil!
-        if assign_type.nil?
-            @errors << Azula::Error.new("could not convert to LLVM type", Azula::ErrorType::Compiling, assign.token)
-            return
+        assign_type : LLVM::Type? = nil
+        if !assign.identifier.type.not_nil!.is(InferType.new)
+            assign_type = azl_type_to_llvm assign.identifier.type.not_nil!
+            if assign_type.nil?
+                @errors << Azula::Error.new("could not convert to LLVM type", Azula::ErrorType::Compiling, assign.token)
+                return
+            end
         end
 
         value = compile assign.value, builder, function
@@ -201,7 +204,20 @@ class Azula::Compiler
             value = dereference_pointer value, builder
         end
 
-        var_pointer = builder.alloca assign_type, assign.identifier.value
+        if assign_type.nil?
+            if !value.function.nil?
+                assign_type = value.function.not_nil!.type
+            else
+                assign_type = value.raw_value.not_nil!.type
+            end
+        end
+
+        if value.type.is_a?(FunctionType)
+            @symbols[assign.identifier.value] = value
+            return
+        end
+
+        var_pointer = builder.alloca assign_type.not_nil!, assign.identifier.value
         @symbols[assign.identifier.value] = Azula::Value.new(Azula::PointerType.new(assign.identifier.type.not_nil!), var_pointer)
         builder.store value.raw_value.not_nil!, var_pointer
 

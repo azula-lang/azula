@@ -136,6 +136,8 @@ class Azula::Parser
         case @current_token.type
         when TokenType::Type
             return parse_assign_statement
+        when TokenType::Var
+            return parse_assign_statement
         else
             exp = parse_expression
             if exp.nil?
@@ -483,6 +485,8 @@ class Azula::Parser
             return Azula::BooleanType.new
         when "string"
             return Azula::StringType.new
+        when "var"
+            return Azula::InferType.new
         when "array"
             array_type : Azula::Type? = nil
             # If left bracket, type is given, no need to infer

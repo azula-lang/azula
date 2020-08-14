@@ -67,7 +67,7 @@ class Azula::Program
         system "clang -o #{file} .build/temp.o #{static ? "-static" : ""}"
 
         File.delete ".build/temp.o"
-        Dir.rmdir ".build"
+        Dir.delete ".build"
     end
 
     def write_llvm(file : String)

@@ -165,4 +165,21 @@ module Azula
             true
         end
     end
+
+    class InferType < Type
+        def initialize
+        end
+
+        def to_s : String
+            "var"
+        end
+
+        def is(t : Type) : Bool
+            return true
+        end
+
+        def is_pointer? : Bool
+            false
+        end
+    end
 end

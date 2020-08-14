@@ -166,6 +166,10 @@ class Azula::Typechecker
             assign_type = @symbols.get node.identifier.value
         end
 
+        if assign_type.not_nil!.is(InferType.new)
+            assign_type = val_type
+        end
+
         if !val_type.is(assign_type.not_nil!)
             @errors << Azula::Error.new "type mismatch in assign, expecting #{assign_type.to_s}, got #{val_type.to_s}", Azula::ErrorType::Typechecking, node.token
             return
