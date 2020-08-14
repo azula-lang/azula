@@ -6,8 +6,26 @@ module Azula
 end
 
 def main
-    code = File.read "test.azl"
-    program = Azula::Program.new("test.azl", code)
+    if ARGV.size != 2
+        puts "Incorrect usage.".colorize(:red)
+        puts "Usage: azula [build/run/llir] file.azl".colorize(:red)
+        exit(1)
+    end
+
+    cmd = ARGV[0]
+    
+    if !["run", "build", "llir"].includes?(cmd.downcase)
+        puts "Unknown command.".colorize(:red)
+        exit(1)
+    end
+
+    if !File.file?(ARGV[1])
+        puts "Couldn't find the file at: #{ARGV[1]}".colorize(:red)
+        exit(1)
+    end
+
+    code = File.read ARGV[1]
+    program = Azula::Program.new(ARGV[1], code)
     program.parse
     if program.errors.size > 0
         print_errors program.errors, code
@@ -27,8 +45,20 @@ def main
     end
 
     program.optimise
-    program.write_llvm("test.ll")
-    program.create_executable("test", false)
+    
+    name = File.basename(ARGV[1]).gsub(File.extname(ARGV[1]), "")
+
+    if ARGV[0] == "llir"
+        program.write_llvm("#{name}.ll")
+        exit(0)
+    end
+
+    program.create_executable(name, true)
+
+    if ARGV[0] == "run"
+        system "./#{name}"
+        File.delete name
+    end
 end
 
 def print_errors(errors : Array(Azula::Error), code : String)
