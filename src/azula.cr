@@ -1,91 +1,73 @@
-require "./azula/lexer"
-require "./azula/parser"
-require "./azula/types/"
-require "./azula/compiler/"
-require "./azula/errors"
-
-require "option_parser"
+require "./program"
 require "colorize"
 
-# Azula is a strongly-typed compiled language, using an LLVM backend
 module Azula
+    VERSION = "0.4.0"
 end
 
-VERSION = "0.3.2"
-PROMPT = ">> "
+def main
+    if ARGV.size != 2
+        puts "Incorrect usage.".colorize(:red)
+        puts "Usage: azula [build/run/llir] file.azl".colorize(:red)
+        exit(1)
+    end
 
-type_check = true
+    cmd = ARGV[0]
+    
+    if !["run", "build", "llir"].includes?(cmd.downcase)
+        puts "Unknown command.".colorize(:red)
+        exit(1)
+    end
 
-OptionParser.parse do |parser|
-    parser.banner = "Usage: azula run [arguments]"
-    parser.on("-nt", "--no-typecheck", "Disable type checking") { type_check = false }
+    if !File.file?(ARGV[1])
+        puts "Couldn't find the file at: #{ARGV[1]}".colorize(:red)
+        exit(1)
+    end
+
+    code = File.read ARGV[1]
+    program = Azula::Program.new(ARGV[1], code)
+    program.parse
+    if program.errors.size > 0
+        print_errors program.errors, code
+        return
+    end
+
+    program.typecheck
+    if program.errors.size > 0
+        print_errors program.errors, code
+        return
+    end
+
+    program.compile
+    if program.errors.size > 0
+        print_errors program.errors, code
+        return
+    end
+
+    # program.optimise
+    
+    name = File.basename(ARGV[1]).gsub(File.extname(ARGV[1]), "")
+
+    if ARGV[0] == "llir"
+        program.write_llvm("#{name}.ll")
+        exit(0)
+    end
+
+    program.create_executable(name, false)
+
+    if ARGV[0] == "run"
+        system "./#{name}"
+        File.delete name
+    end
 end
 
-puts "#{"Azula".colorize(Colorize::ColorRGB.new(253, 117, 155))}" + " Version #{VERSION}\n"
-
-if ARGV.size == 0
-    puts "Incorrect number of arguments."
-    exit
-end
-todo = ARGV[0]
-
-if todo == "version"
-    exit
+def print_errors(errors : Array(Azula::Error), code : String)
+    errors.each do |error|
+        puts "#{error.type.to_s.upcase} ERROR".colorize(:red)
+        puts error.message.colorize(:red)
+        puts code.lines[error.line]
+        puts "#{" " * (error.character-1)}^".colorize(:red)
+    end
 end
 
-file = ARGV[1]
-content = File.read file
-
-# Setup error manager
-Azula::ErrorManager.set_file content.split("\n")
-
-puts "Lexing".colorize(:green)
-l = Azula::Lexer.new content
-l.file = file
-puts "Parsing".colorize(:green)
-p = Azula::Parser.new l
-smt = p.parse_program
-
-if !Azula::ErrorManager.can_compile
-    Azula::ErrorManager.print_errors
-    exit
-end
-
-if type_check
-    puts "Typechecking".colorize(:green)
-    t = Azula::Types::Typechecker.new
-    t.check smt
-end
-
-if !Azula::ErrorManager.can_compile
-    Azula::ErrorManager.print_errors
-    exit
-end
-
-puts "Compiling".colorize(:green)
-c = Azula::Compiler::Compiler.new
-c.register_visitors
-c.compile smt
-
-if !Azula::ErrorManager.can_compile
-    Azula::ErrorManager.print_errors
-    exit
-end
-
-outfile = file.split("/")[file.split("/").size-1].sub(".azl", "")
-
-if todo == "build"
-    puts "Building file".colorize(:green)
-    c.create_executable "#{outfile}"
-    puts "Compiled to ./#{outfile}"
-elsif todo == "run"
-    puts "Running\n".colorize(:green)
-    puts "Output"
-    puts "-" * 30
-    c.create_executable "#{outfile}"
-    system "./#{outfile}"
-    File.delete "#{outfile}"
-elsif todo == "llir"
-    c.write_to_file "#{outfile}.ll"
-    puts "Writing LLIR to #{outfile}.ll".colorize(:green)
-end
+main

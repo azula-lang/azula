@@ -1,13 +1,13 @@
-name: Azula
+name: azula
 version: 0.1.0
 
 authors:
   - OisinA
 
 targets:
-  Azula:
+  azula:
     main: src/azula.cr
 
-crystal: 0.29.0
+crystal: 0.34.0
 
 license: MIT
