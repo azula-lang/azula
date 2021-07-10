@@ -14,7 +14,6 @@ use inkwell::{
     module::Linkage,
     targets::{FileType, InitializationConfig, Target, TargetTriple},
     types::{AnyType, AnyTypeEnum, BasicType},
-    values::BasicValue,
     AddressSpace,
 };
 use parser::ast::Statement;
@@ -26,14 +25,17 @@ use crate::parser::ast::Type;
 extern crate lalrpop_util;
 
 fn main() {
+    // Read in the source file
     let args: Vec<String> = std::env::args().collect();
     let source_file =
         fs::read_to_string(Path::new(&args[1])).expect("Could not read supplied file.");
 
+    // Generate parse tree from source
     let parse_tree = parser::parser::ProgramParser::new()
         .parse(&source_file)
         .unwrap();
 
+    // Construct the compiler struct using LLVM constructs
     let context = Context::create();
 
     let module = context.create_module("main_mod");
@@ -44,80 +46,11 @@ fn main() {
         builder: &builder,
         module,
         ptrs: HashMap::new(),
+        str_type: context.i8_type().ptr_type(AddressSpace::Generic),
     };
 
-    let print_int = compiler.module.add_function(
-        "print_int",
-        context
-            .void_type()
-            .fn_type(&[context.i32_type().as_basic_type_enum()], false),
-        Some(Linkage::Private),
-    );
-    let str_type = context.i8_type().ptr_type(AddressSpace::Generic);
-    let printf = compiler.module.add_function(
-        "printf",
-        context
-            .i32_type()
-            .fn_type(&[str_type.as_basic_type_enum()], true),
-        Some(Linkage::External),
-    );
-    let main_builder = context.create_builder();
-    let main_entry = context.append_basic_block(print_int, "entry");
-    main_builder.position_at_end(main_entry);
-    let global = main_builder.build_global_string_ptr("%d\n", "format");
-    main_builder.build_call(
-        printf,
-        &[
-            global.as_basic_value_enum(),
-            print_int.get_first_param().unwrap(),
-        ],
-        "print",
-    );
-    main_builder.build_return(None);
+    compiler.add_print_funcs();
 
-    let print_float = compiler.module.add_function(
-        "print_float",
-        context
-            .void_type()
-            .fn_type(&[context.f32_type().as_basic_type_enum()], false),
-        Some(Linkage::Private),
-    );
-    let entry = context.append_basic_block(print_float, "entry");
-    main_builder.position_at_end(entry);
-    let global_f = main_builder.build_global_string_ptr("%f\n", "format");
-    main_builder.build_call(
-        printf,
-        &[
-            global_f.as_basic_value_enum(),
-            print_float.get_first_param().unwrap(),
-        ],
-        "print",
-    );
-    main_builder.build_return(None);
-
-    let print_string = compiler.module.add_function(
-        "print_string",
-        context.void_type().fn_type(
-            &[context
-                .i8_type()
-                .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum()],
-            false,
-        ),
-        Some(Linkage::Private),
-    );
-    let entry = context.append_basic_block(print_string, "entry");
-    main_builder.position_at_end(entry);
-    let global_f = main_builder.build_global_string_ptr("%s\n", "format");
-    main_builder.build_call(
-        printf,
-        &[
-            global_f.as_basic_value_enum(),
-            print_string.get_first_param().unwrap(),
-        ],
-        "print",
-    );
-    main_builder.build_return(None);
     for statement in parse_tree {
         match *statement {
             Statement::Function(name, params, return_type, body) => {
@@ -135,7 +68,7 @@ fn main() {
                                 _ => panic!("unimplemented float size"),
                             },
                             Type::Boolean => compiler.context.bool_type().as_basic_type_enum(),
-                            Type::String => str_type.as_basic_type_enum(),
+                            Type::String => compiler.str_type.as_basic_type_enum(),
                         })
                         .collect()
                 } else {
@@ -161,7 +94,7 @@ fn main() {
                             _ => panic!("unimplemented float size"),
                         },
                         Type::Boolean => compiler.context.bool_type().as_any_type_enum(),
-                        Type::String => str_type.as_any_type_enum(),
+                        Type::String => compiler.str_type.as_any_type_enum(),
                     };
                 }
 
@@ -201,7 +134,7 @@ fn main() {
                                     _ => panic!("unimplemented float size"),
                                 },
                                 Type::Boolean => compiler.context.bool_type().as_basic_type_enum(),
-                                Type::String => str_type.as_basic_type_enum(),
+                                Type::String => compiler.str_type.as_basic_type_enum(),
                             },
                             "param",
                         );

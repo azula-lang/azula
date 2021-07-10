@@ -87,7 +87,7 @@ Identifier: String = {
 }
 
 TypedIdentifier: (Type, String) = {
-    <ZukoType> <Identifier>
+    <AzulaType> <Identifier>
 }
 
 Let: (Option<String>, String, Box<Expr>) = {
@@ -106,7 +106,7 @@ FunctionCallStmt: (String, Vec<Box<Expr>>) = {
     <Identifier> <Paren<Comma<Expr>>> ";"
 }
 
-ReturnType: Type = ":" <ZukoType> => <>; 
+ReturnType: Type = ":" <AzulaType> => <>; 
 
 Return: Option<Box<Expr>> = {
     "return" <Expr?> ";"
