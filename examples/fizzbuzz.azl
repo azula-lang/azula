@@ -1,0 +1,29 @@
+func fizzbuzz(int n) {
+    if n > 100 {
+        return;
+    }
+    if n % 3 == 0 && n % 5 == 0 {
+        print("fizzbuzz");
+        fizzbuzz(n + 1);
+        return;
+    }
+    if n % 3 == 0 {
+        print("fizz");
+        fizzbuzz(n + 1);
+        return;
+    }
+    if n % 5 == 0 {
+        print("buzz");
+        fizzbuzz(n + 1);
+        return;
+    }
+
+    print(n);
+    fizzbuzz(n + 1);
+}
+
+func main: int {
+    fizzbuzz(0);
+
+    return 0;
+}

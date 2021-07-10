@@ -1,0 +1,16 @@
+[package]
+name = "zuko"
+version = "0.1.0"
+authors = ["OisinA <oisinaylward@gmail.com>"]
+edition = "2018"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies] # <-- We added this and everything after!
+lalrpop = "0.19.6"
+
+[dependencies]
+lalrpop-util = "0.19.6"
+regex = "1"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm11-0"] }

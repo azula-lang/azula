@@ -1,0 +1,151 @@
+use std::str::FromStr;
+use crate::parser::ast::{Type, Expr, Opcode, Statement};
+
+grammar;
+
+pub Program: Vec<Box<Statement>> = <Statement+> => <>;
+
+pub Statement: Box<Statement> = {
+    Let => Box::new(Statement::Let(<>.0, <>.1, <>.2)),
+    Function => Box::new(Statement::Function(<>.0, <>.1, <>.2, <>.3)),
+    Return => Box::new(Statement::Return(<>)),
+    If => Box::new(Statement::If(<>.0, <>.1)),
+    <Expr> ";" => Box::new(Statement::Expression(<>)),
+}
+
+pub Expr: Box<Expr> = {
+    Expr BoolOp BoolExpr => Box::new(Expr::Op(<>)),
+    BoolExpr,
+}
+
+pub BoolExpr: Box<Expr> = {
+    BoolExpr CondOp ArithmeticExpr => Box::new(Expr::Op(<>)),
+    ArithmeticExpr,
+}
+
+pub ArithmeticExpr: Box<Expr> = {
+    ArithmeticExpr ExprOp Factor => Box::new(Expr::Op(<>)),
+    Factor,
+}
+
+ExprOp: Opcode = {
+    "+" => Opcode::Add,
+    "-" => Opcode::Sub,
+};
+
+Factor: Box<Expr> = {
+    Factor FactorOp Term => Box::new(Expr::Op(<>)),
+    Term,
+};
+
+FactorOp: Opcode = {
+    "*" => Opcode::Mul,
+    "/" => Opcode::Div,
+    "%" => Opcode::Rem,
+}
+
+CondOp: Opcode = {
+    "==" => Opcode::Eq,
+    "!=" => Opcode::NotEq,
+    "<" => Opcode::LessThan,
+    ">" => Opcode::GreaterThan,
+    "<=" => Opcode::LessEqual,
+    ">=" => Opcode::GreaterEqual,
+}
+
+BoolOp: Opcode = {
+    "||" => Opcode::Or,
+    "&&" => Opcode::And,
+}
+
+Term: Box<Expr> = {
+    StringVal => Box::new(Expr::String(<>)),
+    Num => Box::new(Expr::Number(<>)),
+    Bool => Box::new(Expr::Boolean(<>)),
+    Identifier => Box::new(Expr::Identifier(<>)),
+    FunctionCall => Box::new(Expr::FunctionCall(<>.0, <>.1)),
+    "(" <Expr> ")",
+};
+
+AzulaType: Type = {
+    "int" => Type::Integer(32),
+    "int32" => Type::Integer(32),
+    "int64" => Type::Integer(64),
+    "float" => Type::Float(32),
+    "float32" => Type::Float(32),
+    "float64" => Type::Float(64),
+    "string" => Type::String,
+    "bool" => Type::Boolean,
+}
+
+Mutability: String = {
+    "mut" => <>.to_string()
+}
+
+Identifier: String = {
+    r"[a-zA-Z_]+" => <>.to_string()
+}
+
+TypedIdentifier: (Type, String) = {
+    <ZukoType> <Identifier>
+}
+
+Let: (Option<String>, String, Box<Expr>) = {
+    "let" <Mutability?> <Identifier> "=" <Expr> ";"
+}
+
+Function: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Box<Statement>>) = {
+    "func" <Identifier> <Paren<Comma<TypedIdentifier>>?> <ReturnType?> <Brace<Statement*>>
+}
+
+FunctionCall: (String, Vec<Box<Expr>>) = {
+    <Identifier> <Paren<Comma<Expr>>>
+}
+
+FunctionCallStmt: (String, Vec<Box<Expr>>) = {
+    <Identifier> <Paren<Comma<Expr>>> ";"
+}
+
+ReturnType: Type = ":" <ZukoType> => <>; 
+
+Return: Option<Box<Expr>> = {
+    "return" <Expr?> ";"
+}
+
+Num: f64 = r"[0-9]+(.[0-9]+)?" => f64::from_str(<>).unwrap();
+
+StringAllowedVals: String = {
+    r"[a-zA-Z_]+" => <>.to_string(),
+    Bool => <>.to_string(),
+}
+
+StringVal: String = {
+    r"'" <StringAllowedVals+> r"'" => <>.join(" "),
+    r#"""# <StringAllowedVals+> r#"""# => <>.join(" "),
+}
+
+Bool: bool = {
+    "true" => true,
+    "false" => false,
+}
+
+If: (Box<Expr>, Vec<Box<Statement>>) = {
+    "if" <Expr> <Brace<Statement*>>
+}
+
+Paren<T> = "(" <T> ")";
+Brace<T> = "{" <T> "}";
+Bracket<T> = "[" <T> "]";
+
+Comma<T> = Delim<T, ",">;
+
+Delim<T, D>: Vec<T> = {
+    <h: (<T> D)*> <t: T?> => match t {
+        Some(t) => {
+            let mut h = h;
+            h.push(t);
+            h
+        }
+        None => h
+    }     
+};
