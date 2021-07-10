@@ -4,12 +4,12 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::{Linkage, Module},
-    types::{BasicType, BasicTypeEnum, PointerType},
+    types::{AnyType, AnyTypeEnum, BasicType, BasicTypeEnum, PointerType},
     values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace,
 };
 
-use crate::parser::ast::{Expr, Opcode, Statement};
+use crate::parser::ast::{Expr, Opcode, Statement, Type};
 
 pub struct Compiler<'a> {
     pub context: &'a Context,
@@ -94,6 +94,115 @@ impl<'a> Compiler<'a> {
             "print",
         );
         main_builder.build_return(None);
+    }
+
+    pub fn gen(self: &mut Compiler<'a>, parse_tree: Vec<Box<Statement>>) {
+        for statement in parse_tree {
+            match *statement {
+                Statement::Function(name, params, return_type, body) => {
+                    let llvm_params = if let Some(x) = &params {
+                        x.iter()
+                            .map(|(typ, _)| match *typ {
+                                Type::Integer(size) => match size {
+                                    32 => self.context.i32_type().as_basic_type_enum(),
+                                    64 => self.context.i64_type().as_basic_type_enum(),
+                                    _ => panic!("unimplemented int size"),
+                                },
+                                Type::Float(size) => match size {
+                                    32 => self.context.f32_type().as_basic_type_enum(),
+                                    64 => self.context.f64_type().as_basic_type_enum(),
+                                    _ => panic!("unimplemented float size"),
+                                },
+                                Type::Boolean => self.context.bool_type().as_basic_type_enum(),
+                                Type::String => self.str_type.as_basic_type_enum(),
+                            })
+                            .collect()
+                    } else {
+                        vec![]
+                    };
+
+                    let mut linkage = Some(Linkage::Private);
+                    if name == "main" {
+                        linkage = None;
+                    }
+
+                    let mut llvm_ret: AnyTypeEnum = self.context.void_type().as_any_type_enum();
+                    if let Some(ret) = return_type {
+                        llvm_ret = match ret {
+                            Type::Integer(size) => match size {
+                                32 => self.context.i32_type().as_any_type_enum(),
+                                64 => self.context.i64_type().as_any_type_enum(),
+                                _ => panic!("unimplemented int size"),
+                            },
+                            Type::Float(size) => match size {
+                                32 => self.context.f32_type().as_any_type_enum(),
+                                64 => self.context.f64_type().as_any_type_enum(),
+                                _ => panic!("unimplemented float size"),
+                            },
+                            Type::Boolean => self.context.bool_type().as_any_type_enum(),
+                            Type::String => self.str_type.as_any_type_enum(),
+                        };
+                    }
+
+                    let mut function_type = self.context.void_type().fn_type(&[], false);
+                    if llvm_ret.is_int_type() {
+                        function_type = llvm_ret.into_int_type().fn_type(&llvm_params, false);
+                    }
+                    if llvm_ret.is_float_type() {
+                        function_type = llvm_ret.into_float_type().fn_type(&llvm_params, false);
+                    }
+                    if llvm_ret.is_pointer_type() {
+                        function_type = llvm_ret.into_pointer_type().fn_type(&llvm_params, false);
+                    }
+                    if llvm_ret.is_void_type() {
+                        function_type = llvm_ret.into_void_type().fn_type(&llvm_params, false)
+                    }
+
+                    let llvm_func = self
+                        .module
+                        .add_function(name.as_str(), function_type, linkage);
+
+                    let entry = self.context.append_basic_block(llvm_func, "entry");
+                    self.builder.position_at_end(entry);
+
+                    if let Some(p) = &params {
+                        for (index, (typ, name)) in p.iter().enumerate() {
+                            let alloca = self.builder.build_alloca(
+                                match *typ {
+                                    Type::Integer(size) => match size {
+                                        32 => self.context.i32_type().as_basic_type_enum(),
+                                        64 => self.context.i64_type().as_basic_type_enum(),
+                                        _ => panic!("unimplemented int size"),
+                                    },
+                                    Type::Float(size) => match size {
+                                        32 => self.context.f32_type().as_basic_type_enum(),
+                                        64 => self.context.f64_type().as_basic_type_enum(),
+                                        _ => panic!("unimplemented float size"),
+                                    },
+                                    Type::Boolean => self.context.bool_type().as_basic_type_enum(),
+                                    Type::String => self.str_type.as_basic_type_enum(),
+                                },
+                                "param",
+                            );
+                            self.builder
+                                .build_store(alloca, llvm_func.get_params()[index]);
+                            self.ptrs.insert(name.clone(), alloca);
+                        }
+                    }
+
+                    for stmt in &body {
+                        self.gen_stmt(&llvm_func, *stmt.clone());
+                    }
+
+                    let x = body.last().unwrap();
+                    match *x.clone() {
+                        Statement::Return(_) => continue,
+                        _ => self.builder.build_return(None),
+                    };
+                }
+                _ => panic!("non-function at top level"),
+            }
+        }
     }
 
     pub fn gen_stmt(self: &mut Compiler<'a>, current_func: &FunctionValue<'a>, stmt: Statement) {
