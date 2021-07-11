@@ -3,28 +3,30 @@ use crate::parser::ast::{Type, Expr, Opcode, Statement};
 
 grammar;
 
-pub Program: Vec<Box<Statement>> = <Statement+> => <>;
+pub Program: Vec<Statement> = <Statement+> => <>;
 
-pub Statement: Box<Statement> = {
-    Let => Box::new(Statement::Let(<>.0, <>.1, <>.2)),
-    Function => Box::new(Statement::Function(<>.0, <>.1, <>.2, <>.3)),
-    Return => Box::new(Statement::Return(<>)),
-    If => Box::new(Statement::If(<>.0, <>.1)),
-    <Expr> ";" => Box::new(Statement::Expression(<>)),
+pub Statement: Statement = {
+    Let => Statement::Let(<>.0, <>.1, <>.2),
+    Function => Statement::Function(<>.0, <>.1, <>.2, <>.3),
+    Return => Statement::Return(<>),
+    If => Statement::If(<>.0, <>.1),
+    <BoxedExpr> ";" => Statement::Expression(<>),
 }
 
-pub Expr: Box<Expr> = {
-    Expr BoolOp BoolExpr => Box::new(Expr::Op(<>)),
+pub Expr: Expr = {
+    <exp:Expr> <op:BoolOp> <boolexp:BoolExpr> => Expr::Op(Box::new(exp), op, Box::new(boolexp)),
     BoolExpr,
 }
 
-pub BoolExpr: Box<Expr> = {
-    BoolExpr CondOp ArithmeticExpr => Box::new(Expr::Op(<>)),
+pub BoxedExpr: Box<Expr> = Expr => Box::new(<>);
+
+pub BoolExpr: Expr = {
+    <exp:BoolExpr> <op:CondOp> <arit:ArithmeticExpr> => Expr::Op(Box::new(exp), op, Box::new(arit)),
     ArithmeticExpr,
 }
 
-pub ArithmeticExpr: Box<Expr> = {
-    ArithmeticExpr ExprOp Factor => Box::new(Expr::Op(<>)),
+pub ArithmeticExpr: Expr = {
+    <exp:ArithmeticExpr> <op:ExprOp> <f:Factor> => Expr::Op(Box::new(exp), op, Box::new(f)),
     Factor,
 }
 
@@ -33,8 +35,8 @@ ExprOp: Opcode = {
     "-" => Opcode::Sub,
 };
 
-Factor: Box<Expr> = {
-    Factor FactorOp Term => Box::new(Expr::Op(<>)),
+Factor: Expr = {
+    <f:Factor> <op:FactorOp> <t:Term> => Expr::Op(Box::new(f), op, Box::new(t)),
     Term,
 };
 
@@ -58,12 +60,12 @@ BoolOp: Opcode = {
     "&&" => Opcode::And,
 }
 
-Term: Box<Expr> = {
-    StringVal => Box::new(Expr::String(<>)),
-    Num => Box::new(Expr::Number(<>)),
-    Bool => Box::new(Expr::Boolean(<>)),
-    Identifier => Box::new(Expr::Identifier(<>)),
-    FunctionCall => Box::new(Expr::FunctionCall(<>.0, <>.1)),
+Term: Expr = {
+    StringVal => Expr::String(<>),
+    Num => Expr::Number(<>),
+    Bool => Expr::Boolean(<>),
+    Identifier => Expr::Identifier(<>),
+    FunctionCall => Expr::FunctionCall(<>.0, <>.1),
     "(" <Expr> ")",
 };
 
@@ -91,25 +93,25 @@ TypedIdentifier: (Type, String) = {
 }
 
 Let: (Option<String>, String, Box<Expr>) = {
-    "let" <Mutability?> <Identifier> "=" <Expr> ";"
+    "let" <Mutability?> <Identifier> "=" <BoxedExpr> ";"
 }
 
-Function: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Box<Statement>>) = {
+Function: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Statement>) = {
     "func" <Identifier> <Paren<Comma<TypedIdentifier>>?> <ReturnType?> <Brace<Statement*>>
 }
 
-FunctionCall: (String, Vec<Box<Expr>>) = {
+FunctionCall: (String, Vec<Expr>) = {
     <Identifier> <Paren<Comma<Expr>>>
 }
 
-FunctionCallStmt: (String, Vec<Box<Expr>>) = {
+FunctionCallStmt: (String, Vec<Expr>) = {
     <Identifier> <Paren<Comma<Expr>>> ";"
 }
 
 ReturnType: Type = ":" <AzulaType> => <>; 
 
 Return: Option<Box<Expr>> = {
-    "return" <Expr?> ";"
+    "return" <BoxedExpr?> ";"
 }
 
 Num: f64 = r"[0-9]+(.[0-9]+)?" => f64::from_str(<>).unwrap();
@@ -129,8 +131,8 @@ Bool: bool = {
     "false" => false,
 }
 
-If: (Box<Expr>, Vec<Box<Statement>>) = {
-    "if" <Expr> <Brace<Statement*>>
+If: (Box<Expr>, Vec<Statement>) = {
+    "if" <BoxedExpr> <Brace<Statement*>>
 }
 
 Paren<T> = "(" <T> ")";

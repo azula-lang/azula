@@ -1,4 +1,4 @@
-type Block = Vec<Box<Statement>>;
+type Block = Vec<Statement>;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -9,7 +9,7 @@ pub enum Expr {
     String(String),
 
     Op(Box<Expr>, Opcode, Box<Expr>),
-    FunctionCall(String, Vec<Box<Expr>>),
+    FunctionCall(String, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]

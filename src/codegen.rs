@@ -97,9 +97,9 @@ impl<'a> Compiler<'a> {
         main_builder.build_return(None);
     }
 
-    pub fn gen(self: &mut Compiler<'a>, parse_tree: Vec<Box<Statement>>) {
+    pub fn gen(self: &mut Compiler<'a>, parse_tree: Vec<Statement>) {
         for statement in parse_tree {
-            match *statement {
+            match statement {
                 Statement::Function(name, params, return_type, body) => {
                     // Convert the parameters from Azula types to LLVM types
                     let llvm_params = if let Some(x) = &params {
@@ -158,12 +158,12 @@ impl<'a> Compiler<'a> {
                     }
 
                     for stmt in &body {
-                        self.gen_stmt(&llvm_func, *stmt.clone());
+                        self.gen_stmt(&llvm_func, stmt.clone());
                     }
 
                     // Check if the function ends with a return - otherwise add one
                     let x = body.last().unwrap();
-                    match *x.clone() {
+                    match x.clone() {
                         Statement::Return(_) => continue,
                         _ => self.builder.build_return(None),
                     };
@@ -329,7 +329,7 @@ impl<'a> Compiler<'a> {
         self: &mut Compiler<'a>,
         current_func: &FunctionValue<'a>,
         cond: Box<Expr>,
-        stmts: Vec<Box<Statement>>,
+        stmts: Vec<Statement>,
     ) {
         // Evaluate the condition and cast it to a boolean (represented as an int)
         let val = self
@@ -349,12 +349,12 @@ impl<'a> Compiler<'a> {
         self.builder.position_at_end(block);
         // Generate the code inside the block
         for stmt in stmts.clone() {
-            self.gen_stmt(current_func, *stmt.clone());
+            self.gen_stmt(current_func, stmt.clone());
         }
 
         // Check if there is a return at the end of the block - otherwise branch to end
         let x = stmts.last().unwrap();
-        match *x.clone() {
+        match x.clone() {
             Statement::Return(_) => (),
             _ => {
                 self.builder.build_unconditional_branch(end);
