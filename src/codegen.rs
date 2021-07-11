@@ -6,7 +6,6 @@ use inkwell::{
     module::{Linkage, Module},
     types::{AnyType, AnyTypeEnum, BasicType, BasicTypeEnum, PointerType},
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace,
 };
 
 use crate::parser::ast::{Expr, Opcode, Statement, Type};
@@ -23,78 +22,13 @@ pub struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     pub fn add_print_funcs(self: &mut Compiler<'a>) {
-        let print_int = self.module.add_function(
-            "print_int",
-            self.context
-                .void_type()
-                .fn_type(&[self.context.i32_type().as_basic_type_enum()], false),
-            Some(Linkage::Private),
-        );
-        let printf = self.module.add_function(
+        let _ = self.module.add_function(
             "printf",
             self.context
                 .i32_type()
                 .fn_type(&[self.str_type.as_basic_type_enum()], true),
             Some(Linkage::External),
         );
-        let main_builder = self.context.create_builder();
-        let main_entry = self.context.append_basic_block(print_int, "entry");
-        main_builder.position_at_end(main_entry);
-        let global = main_builder.build_global_string_ptr("%d\n", "format");
-        main_builder.build_call(
-            printf,
-            &[
-                global.as_basic_value_enum(),
-                print_int.get_first_param().unwrap(),
-            ],
-            "print",
-        );
-        main_builder.build_return(None);
-
-        let print_float = self.module.add_function(
-            "print_float",
-            self.context
-                .void_type()
-                .fn_type(&[self.context.f32_type().as_basic_type_enum()], false),
-            Some(Linkage::Private),
-        );
-        let entry = self.context.append_basic_block(print_float, "entry");
-        main_builder.position_at_end(entry);
-        let global_f = main_builder.build_global_string_ptr("%f\n", "format");
-        main_builder.build_call(
-            printf,
-            &[
-                global_f.as_basic_value_enum(),
-                print_float.get_first_param().unwrap(),
-            ],
-            "print",
-        );
-        main_builder.build_return(None);
-
-        let print_string = self.module.add_function(
-            "print_string",
-            self.context.void_type().fn_type(
-                &[self
-                    .context
-                    .i8_type()
-                    .ptr_type(AddressSpace::Generic)
-                    .as_basic_type_enum()],
-                false,
-            ),
-            Some(Linkage::Private),
-        );
-        let entry = self.context.append_basic_block(print_string, "entry");
-        main_builder.position_at_end(entry);
-        let global_f = main_builder.build_global_string_ptr("%s\n", "format");
-        main_builder.build_call(
-            printf,
-            &[
-                global_f.as_basic_value_enum(),
-                print_string.get_first_param().unwrap(),
-            ],
-            "print",
-        );
-        main_builder.build_return(None);
     }
 
     pub fn gen(self: &mut Compiler<'a>, parse_tree: Vec<Statement>) {
@@ -222,9 +156,10 @@ impl<'a> Compiler<'a> {
                     .as_basic_value_enum()
             })),
             Expr::String(s) => {
+                let val = s.trim_matches('\'').trim_matches('\"').replace("\\n", "\n");
                 return Some(Box::new(
                     self.builder
-                        .build_global_string_ptr(s, "string")
+                        .build_global_string_ptr(&val, "string")
                         .as_basic_value_enum(),
                 ));
             }

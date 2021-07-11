@@ -117,13 +117,12 @@ Return: Option<Box<Expr>> = {
 Num: f64 = r"[0-9]+(.[0-9]+)?" => f64::from_str(<>).unwrap();
 
 StringAllowedVals: String = {
-    r"[a-zA-Z_]+" => <>.to_string(),
-    Bool => <>.to_string(),
+    <r#""[a-zA-Z%&,;\s\\]*""#> => <>.to_string(),
+    <r#"'[a-zA-Z%&,;\s\\]*'"#> => <>.to_string(),
 }
 
 StringVal: String = {
-    r"'" <StringAllowedVals+> r"'" => <>.join(" "),
-    r#"""# <StringAllowedVals+> r#"""# => <>.join(" "),
+    <st:StringAllowedVals> => st.to_string(),
 }
 
 Bool: bool = {
@@ -151,3 +150,10 @@ Delim<T, D>: Vec<T> = {
         None => h
     }     
 };
+
+match {
+    r#""[a-zA-Z%&,;\s\\]*""#,
+    r#"'[a-zA-Z%&,;\s\\]*'"#,
+    // r"[a-zA-Z_]+",
+    _
+}

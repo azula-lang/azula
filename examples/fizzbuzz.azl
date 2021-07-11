@@ -3,22 +3,22 @@ func fizzbuzz(int n) {
         return;
     }
     if n % 3 == 0 && n % 5 == 0 {
-        print("fizzbuzz");
+        printf("fizzbuzz\n");
         fizzbuzz(n + 1);
         return;
     }
     if n % 3 == 0 {
-        print("fizz");
+        printf("fizz\n");
         fizzbuzz(n + 1);
         return;
     }
     if n % 5 == 0 {
-        print("buzz");
+        printf("buzz\n");
         fizzbuzz(n + 1);
         return;
     }
 
-    print(n);
+    printf("%d\n", n);
     fizzbuzz(n + 1);
 }
 
