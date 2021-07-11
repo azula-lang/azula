@@ -6,8 +6,6 @@ func fib(int n): int {
     return fib(n - 1) + fib(n - 2);
 }
 
-func main: int {
+func main {
     print(fib(40));
-    
-    return 0;
 }

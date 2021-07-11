@@ -22,8 +22,6 @@ func fizzbuzz(int n) {
     fizzbuzz(n + 1);
 }
 
-func main: int {
+func main {
     fizzbuzz(0);
-
-    return 0;
 }
