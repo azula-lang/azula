@@ -36,6 +36,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "azula"
+version = "0.1.0"
+dependencies = [
+ "inkwell",
+ "lalrpop",
+ "lalrpop-util",
+ "regex",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,13 +546,3 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "zuko"
-version = "0.1.0"
-dependencies = [
- "inkwell",
- "lalrpop",
- "lalrpop-util",
- "regex",
-]

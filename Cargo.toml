@@ -1,7 +1,7 @@
 [package]
-name = "zuko"
+name = "azula"
 version = "0.1.0"
-authors = ["OisinA <oisinaylward@gmail.com>"]
+authors = ["OisinA"]
 edition = "2018"
 build = "build.rs"
 
