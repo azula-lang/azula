@@ -2,7 +2,7 @@ use codespan_reporting::diagnostic::Label;
 
 use crate::parser::ast::Type;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AzulaError {
     FunctionIncorrectParams {
         expected: Type,
@@ -39,38 +39,59 @@ impl AzulaError {
     pub fn labels(&self, file_id: usize) -> Vec<Label<usize>> {
         match self {
             AzulaError::FunctionIncorrectParams {
-                expected,
-                found,
                 function_l,
                 function_r,
                 l,
                 r,
+                ..
             } => vec![
-                Label::primary(file_id, *l..*r).with_message(format!(
-                    "Incorrect function parameter, expected {:?}, got {:?}",
-                    expected, found
-                )),
+                Label::primary(file_id, *l..*r).with_message(self.message()),
                 Label::secondary(file_id, *function_l..*function_r),
             ],
-            AzulaError::NonBooleanIfCond { found, l, r } => {
-                vec![Label::primary(file_id, *l..*r)
-                    .with_message(format!("Non-boolean used in conditional, got {:?}", found))]
+            AzulaError::NonBooleanIfCond { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
             }
-            AzulaError::FunctionNotFound { name, l, r } => {
-                vec![Label::primary(file_id, *l..*r)
-                    .with_message(format!("Function {} not found", name))]
+            AzulaError::FunctionNotFound { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
             }
-            AzulaError::VariableNotFound { name, l, r } => vec![Label::primary(file_id, *l..*r)
-                .with_message(format!("Variable {} not found", name))],
+            AzulaError::VariableNotFound { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
+            }
+            AzulaError::VariableWrongType { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
+            }
+        }
+    }
+
+    pub fn message(&self) -> String {
+        match self {
+            AzulaError::FunctionIncorrectParams {
+                expected, found, ..
+            } => format!(
+                "Incorrect function parameter, expected {:?}, got {:?}",
+                expected, found
+            ),
+            AzulaError::NonBooleanIfCond { found, .. } => {
+                format!("Non-boolean used in conditional, got {:?}", found)
+            }
+            AzulaError::FunctionNotFound { name, .. } => format!("Function {} not found", name),
+            AzulaError::VariableNotFound { name, .. } => format!("Variable {} not found", name),
             AzulaError::VariableWrongType {
-                annotated,
-                found,
-                l,
-                r,
-            } => vec![Label::primary(file_id, *l..*r).with_message(format!(
+                annotated, found, ..
+            } => format!(
                 "Variable has wrong type, value is {:?}, variable expects {:?}",
                 found, annotated
-            ))],
+            ),
+        }
+    }
+
+    pub fn error_code(&self) -> i32 {
+        match self {
+            AzulaError::FunctionIncorrectParams { .. } => 0,
+            AzulaError::NonBooleanIfCond { .. } => 1,
+            AzulaError::FunctionNotFound { .. } => 2,
+            AzulaError::VariableNotFound { .. } => 3,
+            AzulaError::VariableWrongType { .. } => 4,
         }
     }
 }

@@ -218,32 +218,7 @@ impl<'a> Compiler<'a> {
                     })
                     .collect::<Vec<_>>();
 
-                let mut func = self.module.get_function(&name);
-
-                // Temporary workaround to pick the correct print function - replace with macros in the future
-                if name == "print" {
-                    func = match llvm_vals.first().unwrap().as_basic_value_enum().get_type() {
-                        BasicTypeEnum::IntType(_) => {
-                            // let size = llvm_vals
-                            //     .first()
-                            //     .unwrap()
-                            //     .as_basic_value_enum()
-                            //     .get_type()
-                            //     .into_int_type()
-                            //     .get_bit_width();
-                            self.module.get_function("print_int")
-                        }
-                        BasicTypeEnum::FloatType(_) => self.module.get_function("print_float"),
-                        BasicTypeEnum::PointerType(s) => {
-                            if s.get_element_type().is_int_type() {
-                                self.module.get_function("print_string")
-                            } else {
-                                panic!("can't print this type")
-                            }
-                        }
-                        _ => panic!("can't print this type"),
-                    };
-                }
+                let func = self.module.get_function(&name);
 
                 self.builder
                     .build_call(func.unwrap(), &llvm_vals, "call")

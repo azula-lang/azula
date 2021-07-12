@@ -48,7 +48,10 @@ fn main() {
 
     let er = Typechecker::default().typecheck(parse_tree.clone());
     if let Some(er) = er {
-        let diagnostic = Diagnostic::error().with_labels(er.labels(file_id));
+        let diagnostic = Diagnostic::error()
+            .with_message(er.message())
+            .with_code(format!("E{}", er.error_code()))
+            .with_labels(er.labels(file_id));
 
         let writer = StandardStream::stderr(ColorChoice::Always);
         let config = codespan_reporting::term::Config::default();
