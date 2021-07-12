@@ -15,8 +15,9 @@ use inkwell::{
     targets::{FileType, InitializationConfig, Target, TargetTriple},
     AddressSpace,
 };
+use lalrpop_util::ParseError;
 
-use crate::{codegen::*, typecheck::Typechecker};
+use crate::{codegen::*, errors::AzulaError, typecheck::Typechecker};
 
 use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
@@ -41,10 +42,43 @@ fn main() {
 
     let file_id = files.add(file, source_file.clone());
 
-    // Generate parse tree from source
-    let parse_tree = parser::parser::ProgramParser::new()
-        .parse(&source_file)
-        .unwrap();
+    let parse_res = parser::parser::ProgramParser::new().parse(&source_file);
+    let parse_tree = match parse_res {
+        Ok(p) => p,
+        Err(e) => {
+            let error = match e {
+                ParseError::InvalidToken { location } => AzulaError::InvalidToken {
+                    l: location,
+                    r: location + 1,
+                },
+                ParseError::UnrecognizedEOF { location, .. } => AzulaError::UnexpectedEOF {
+                    l: location,
+                    r: location + 1,
+                },
+                ParseError::UnrecognizedToken { token, .. } => AzulaError::InvalidToken {
+                    l: token.0,
+                    r: token.2,
+                },
+                ParseError::ExtraToken { token } => AzulaError::InvalidToken {
+                    l: token.0,
+                    r: token.2,
+                },
+                ParseError::User { .. } => panic!("unimplemented error"),
+            };
+
+            let diagnostic = Diagnostic::error()
+                .with_message(error.message())
+                .with_code(format!("E{}", error.error_code()))
+                .with_labels(error.labels(file_id));
+
+            let writer = StandardStream::stderr(ColorChoice::Always);
+            let config = codespan_reporting::term::Config::default();
+
+            term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+
+            return;
+        }
+    };
 
     let er = Typechecker::default().typecheck(parse_tree.clone());
     if let Some(er) = er {
