@@ -6,27 +6,27 @@ grammar;
 pub Program: Vec<Statement> = <Statement+> => <>;
 
 pub Statement: Statement = {
-    Let => Statement::Let(<>.0, <>.1, <>.2),
-    Function => Statement::Function(<>.0, <>.1, <>.2, <>.3),
-    Return => Statement::Return(<>),
-    If => Statement::If(<>.0, <>.1),
-    <BoxedExpr> ";" => Statement::Expression(<>),
+    <l: @L> <le:Let> <r: @R> => Statement::Let(le.0, le.1, le.2, le.3, l, r),
+    <l: @L> <f:Function> <r: @R> => Statement::Function(f.0, f.1, f.2, f.3, l, r),
+    <l: @L> <ret:Return> <r: @R> => Statement::Return(ret, l, r),
+    <l: @L> <i:If> <r: @R> => Statement::If(i.0, i.1, l, r),
+    <l: @L> <exp:BoxedExpr> ";" <r: @R> => Statement::Expression(exp, l, r),
 }
 
 pub Expr: Expr = {
-    <exp:Expr> <op:BoolOp> <boolexp:BoolExpr> => Expr::Op(Box::new(exp), op, Box::new(boolexp)),
+    <l: @L> <exp:Expr> <op:BoolOp> <boolexp:BoolExpr> <r: @R> => Expr::Op(Box::new(exp), op, Box::new(boolexp), l, r),
     BoolExpr,
 }
 
 pub BoxedExpr: Box<Expr> = Expr => Box::new(<>);
 
 pub BoolExpr: Expr = {
-    <exp:BoolExpr> <op:CondOp> <arit:ArithmeticExpr> => Expr::Op(Box::new(exp), op, Box::new(arit)),
+    <l: @L> <exp:BoolExpr> <op:CondOp> <arit:ArithmeticExpr> <r: @R> => Expr::Op(Box::new(exp), op, Box::new(arit), l, r),
     ArithmeticExpr,
 }
 
 pub ArithmeticExpr: Expr = {
-    <exp:ArithmeticExpr> <op:ExprOp> <f:Factor> => Expr::Op(Box::new(exp), op, Box::new(f)),
+    <l: @L> <exp:ArithmeticExpr> <op:ExprOp> <f:Factor> <r: @R> => Expr::Op(Box::new(exp), op, Box::new(f), l, r),
     Factor,
 }
 
@@ -36,7 +36,7 @@ ExprOp: Opcode = {
 };
 
 Factor: Expr = {
-    <f:Factor> <op:FactorOp> <t:Term> => Expr::Op(Box::new(f), op, Box::new(t)),
+    <l: @L> <f:Factor> <op:FactorOp> <t:Term> <r: @R> => Expr::Op(Box::new(f), op, Box::new(t), l, r),
     Term,
 };
 
@@ -61,11 +61,11 @@ BoolOp: Opcode = {
 }
 
 Term: Expr = {
-    StringVal => Expr::String(<>),
-    Num => Expr::Number(<>),
-    Bool => Expr::Boolean(<>),
-    Identifier => Expr::Identifier(<>),
-    FunctionCall => Expr::FunctionCall(<>.0, <>.1),
+    <l: @L> <s:StringVal> <r: @R> => Expr::String(s, l, r),
+    <l: @L> <n:Num> <r: @R> => Expr::Number(n, l, r),
+    <l: @L> <b:Bool> <r: @R> => Expr::Boolean(b, l, r),
+    <l: @L> <i:Identifier> <r: @R> => Expr::Identifier(i, l, r),
+    <l: @L> <f:FunctionCall> <r: @R> => Expr::FunctionCall(f.0, f.1, l, r),
     "(" <Expr> ")",
 };
 
@@ -92,8 +92,12 @@ TypedIdentifier: (Type, String) = {
     <AzulaType> <Identifier>
 }
 
-Let: (Option<String>, String, Box<Expr>) = {
-    "let" <Mutability?> <Identifier> "=" <BoxedExpr> ";"
+Let: (Option<String>, String, Option<Type>, Box<Expr>) = {
+    "let" <Mutability?> <Identifier> <TypeAnnotation?> "=" <BoxedExpr> ";"
+}
+
+TypeAnnotation: Type = {
+    ":" <AzulaType>
 }
 
 Function: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Statement>) = {

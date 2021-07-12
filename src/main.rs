@@ -6,7 +6,9 @@ use std::{
 };
 
 pub mod codegen;
+pub mod errors;
 pub mod parser;
+pub mod typecheck;
 
 use inkwell::{
     context::Context,
@@ -14,7 +16,11 @@ use inkwell::{
     AddressSpace,
 };
 
-use crate::codegen::*;
+use crate::{codegen::*, typecheck::Typechecker};
+
+use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+use codespan_reporting::{diagnostic::Diagnostic, term};
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -25,16 +31,32 @@ fn main() {
     let source_file =
         fs::read_to_string(Path::new(&args[1])).expect("Could not read supplied file.");
 
+    let mut files = SimpleFiles::new();
+
     let mut file = args[1].as_str();
-    if args[1].contains("/") {
-        let split = args[1].split("/").collect::<Vec<_>>();
+    if args[1].contains('/') {
+        let split = args[1].split('/').collect::<Vec<_>>();
         file = split[split.len() - 1];
     }
+
+    let file_id = files.add(file, source_file.clone());
 
     // Generate parse tree from source
     let parse_tree = parser::parser::ProgramParser::new()
         .parse(&source_file)
         .unwrap();
+
+    let er = Typechecker::default().typecheck(parse_tree.clone());
+    if let Some(er) = er {
+        let diagnostic = Diagnostic::error().with_labels(er.labels(file_id));
+
+        let writer = StandardStream::stderr(ColorChoice::Always);
+        let config = codespan_reporting::term::Config::default();
+
+        term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+
+        return;
+    }
 
     // Construct the compiler struct using LLVM constructs
     let context = Context::create();

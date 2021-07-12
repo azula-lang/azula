@@ -3,30 +3,45 @@ type Block = Vec<Statement>;
 #[derive(Debug, Clone)]
 pub enum Expr {
     // Literals
-    Number(f64),
-    Identifier(String),
-    Boolean(bool),
-    String(String),
+    Number(f64, usize, usize),
+    Identifier(String, usize, usize),
+    Boolean(bool, usize, usize),
+    String(String, usize, usize),
 
-    Op(Box<Expr>, Opcode, Box<Expr>),
-    FunctionCall(String, Vec<Expr>),
+    Op(Box<Expr>, Opcode, Box<Expr>, usize, usize),
+    FunctionCall(String, Vec<Expr>, usize, usize),
 }
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Let(Option<String>, String, Box<Expr>),
-    Function(String, Option<Vec<(Type, String)>>, Option<Type>, Block),
-    Return(Option<Box<Expr>>),
-    Expression(Box<Expr>),
-    If(Box<Expr>, Block),
+    Let(
+        Option<String>,
+        String,
+        Option<Type>,
+        Box<Expr>,
+        usize,
+        usize,
+    ),
+    Function(
+        String,
+        Option<Vec<(Type, String)>>,
+        Option<Type>,
+        Block,
+        usize,
+        usize,
+    ),
+    Return(Option<Box<Expr>>, usize, usize),
+    Expression(Box<Expr>, usize, usize),
+    If(Box<Expr>, Block, usize, usize),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Type {
     Integer(i32),
     Float(i32),
     String,
     Boolean,
+    Void,
 }
 
 impl Type {

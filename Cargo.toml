@@ -14,3 +14,4 @@ lalrpop = "0.19.6"
 lalrpop-util = "0.19.6"
 regex = "1"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm11-0"] }
+codespan-reporting = "0.11.1"

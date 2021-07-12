@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 
 use inkwell::{
@@ -34,7 +35,7 @@ impl<'a> Compiler<'a> {
     pub fn gen(self: &mut Compiler<'a>, parse_tree: Vec<Statement>) {
         for statement in parse_tree {
             match statement {
-                Statement::Function(name, params, return_type, body) => {
+                Statement::Function(name, params, return_type, body, _, _) => {
                     // Convert the parameters from Azula types to LLVM types
                     let llvm_params = if let Some(x) = &params {
                         x.iter()
@@ -98,7 +99,7 @@ impl<'a> Compiler<'a> {
                     // Check if the function ends with a return - otherwise add one
                     let x = body.last().unwrap();
                     match x.clone() {
-                        Statement::Return(_) => continue,
+                        Statement::Return(_, _, _) => continue,
                         _ => self.builder.build_return(None),
                     };
                 }
@@ -109,7 +110,7 @@ impl<'a> Compiler<'a> {
 
     pub fn gen_stmt(self: &mut Compiler<'a>, current_func: &FunctionValue<'a>, stmt: Statement) {
         match stmt {
-            Statement::Return(expr) => {
+            Statement::Return(expr, _, _) => {
                 if expr.is_none() {
                     self.builder.build_return(None);
                     return;
@@ -118,7 +119,7 @@ impl<'a> Compiler<'a> {
                 self.builder
                     .build_return(Some(&*self.gen_expr(current_func, &expr.unwrap()).unwrap()));
             }
-            Statement::Let(_mutability, name, value) => {
+            Statement::Let(_mutability, name, _, value, _, _) => {
                 let value = *self.gen_expr(current_func, &value).unwrap();
                 // Need to typecheck the value
                 let ptr = self
@@ -128,10 +129,10 @@ impl<'a> Compiler<'a> {
 
                 self.ptrs.insert(name, ptr);
             }
-            Statement::Expression(expr) => {
+            Statement::Expression(expr, _, _) => {
                 self.gen_expr(current_func, &expr);
             }
-            Statement::If(cond, stmts) => {
+            Statement::If(cond, stmts, _, _) => {
                 self.gen_if(current_func, cond, stmts);
             }
             _ => panic!("uh oh"),
@@ -144,7 +145,7 @@ impl<'a> Compiler<'a> {
         expr: &Expr,
     ) -> Option<Box<BasicValueEnum<'a>>> {
         match expr {
-            Expr::Number(i) => Some(Box::new(if (*i - i.round()).abs() < 0.01 {
+            Expr::Number(i, _, _) => Some(Box::new(if (*i - i.round()).abs() < 0.01 {
                 self.context
                     .i32_type()
                     .const_int(*i as u64, false)
@@ -155,7 +156,7 @@ impl<'a> Compiler<'a> {
                     .const_float(*i as f64)
                     .as_basic_value_enum()
             })),
-            Expr::String(s) => {
+            Expr::String(s, _, _) => {
                 let val = s.trim_matches('\'').trim_matches('\"').replace("\\n", "\n");
                 return Some(Box::new(
                     self.builder
@@ -163,7 +164,7 @@ impl<'a> Compiler<'a> {
                         .as_basic_value_enum(),
                 ));
             }
-            Expr::Op(expr1, opcode, expr2) => {
+            Expr::Op(expr1, opcode, expr2, _, _) => {
                 let result1 = *self.gen_expr(current_func, expr1).unwrap();
                 let result2 = *self.gen_expr(current_func, expr2).unwrap();
 
@@ -201,12 +202,12 @@ impl<'a> Compiler<'a> {
 
                 None
             }
-            Expr::Identifier(name) => Some(Box::new(
+            Expr::Identifier(name, _, _) => Some(Box::new(
                 self.builder
                     .build_load(*self.ptrs.get(name).unwrap(), "load")
                     .as_basic_value_enum(),
             )),
-            Expr::FunctionCall(name, values) => {
+            Expr::FunctionCall(name, values, _, _) => {
                 // Iterate through the values passed into the function and evaluate them, returning the LLVM values
                 let llvm_vals = values
                     .iter()
@@ -250,7 +251,7 @@ impl<'a> Compiler<'a> {
                     .left()
                     .map(Box::new)
             }
-            Expr::Boolean(b) => Some(Box::new(
+            Expr::Boolean(b, _, _) => Some(Box::new(
                 self.context
                     .bool_type()
                     .const_int(*b as u64, false)
@@ -290,7 +291,7 @@ impl<'a> Compiler<'a> {
         // Check if there is a return at the end of the block - otherwise branch to end
         let x = stmts.last().unwrap();
         match x.clone() {
-            Statement::Return(_) => (),
+            Statement::Return(_, _, _) => (),
             _ => {
                 self.builder.build_unconditional_branch(end);
             }
@@ -393,6 +394,7 @@ pub fn to_any_llvm_type<'a>(
         },
         Type::Boolean => context.bool_type().as_any_type_enum(),
         Type::String => str_type.as_any_type_enum(),
+        Type::Void => context.void_type().as_any_type_enum(),
     }
 }
 
@@ -414,5 +416,6 @@ pub fn to_basic_llvm_type<'a>(
         },
         Type::Boolean => context.bool_type().as_basic_type_enum(),
         Type::String => str_type.as_basic_type_enum(),
+        Type::Void => panic!("cann't use void type as basic type"),
     }
 }
