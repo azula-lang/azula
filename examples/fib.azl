@@ -7,5 +7,5 @@ func fib(int n): int {
 }
 
 func main {
-    print(fib(40));
+    printf("%d", fib(40));
 }

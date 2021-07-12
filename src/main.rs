@@ -25,6 +25,12 @@ fn main() {
     let source_file =
         fs::read_to_string(Path::new(&args[1])).expect("Could not read supplied file.");
 
+    let mut file = args[1].as_str();
+    if args[1].contains("/") {
+        let split = args[1].split("/").collect::<Vec<_>>();
+        file = split[split.len() - 1];
+    }
+
     // Generate parse tree from source
     let parse_tree = parser::parser::ProgramParser::new()
         .parse(&source_file)
@@ -56,7 +62,7 @@ fn main() {
         .module
         .print_to_file(Path::new(&format!(
             ".build/{}.ll",
-            args[1].strip_suffix(".azl").unwrap()
+            file.strip_suffix(".azl").unwrap()
         )))
         .unwrap();
 
@@ -84,16 +90,14 @@ fn main() {
         .unwrap();
 
     Command::new("clang")
-        .arg(format!("-o{}", args[1].strip_suffix(".azl").unwrap()))
+        .arg(format!("-o{}", file.strip_suffix(".azl").unwrap()))
         .arg(".build/out.o")
         .arg("-flto=thin")
         .output()
         .expect("Failed to link");
 
-    let metadata = fs::metadata(Path::new(
-        &args[1].strip_suffix(".azl").unwrap().to_string(),
-    ))
-    .expect("Could not read generated binary.");
+    let metadata = fs::metadata(Path::new(&file.strip_suffix(".azl").unwrap().to_string()))
+        .expect("Could not read generated binary.");
 
     println!("Generated binary of {} Kilobytes.", metadata.len() / 1000);
 }
