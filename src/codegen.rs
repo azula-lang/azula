@@ -121,7 +121,6 @@ impl<'a> Compiler<'a> {
             }
             Statement::Let(_mutability, name, _, value, _, _) => {
                 let value = *self.gen_expr(current_func, &value).unwrap();
-                // Need to typecheck the value
                 let ptr = self
                     .builder
                     .build_alloca(value.as_basic_value_enum().get_type(), &name);
@@ -134,6 +133,12 @@ impl<'a> Compiler<'a> {
             }
             Statement::If(cond, stmts, _, _) => {
                 self.gen_if(current_func, cond, stmts);
+            }
+            Statement::Reassign(name, val, ..) => {
+                let value = *self.gen_expr(current_func, &val).unwrap();
+                // Need to typecheck the value
+                let ptr = self.ptrs.get(&name).unwrap();
+                self.builder.build_store(*ptr, value);
             }
             _ => panic!("uh oh"),
         }
@@ -370,6 +375,7 @@ pub fn to_any_llvm_type<'a>(
         Type::Boolean => context.bool_type().as_any_type_enum(),
         Type::String => str_type.as_any_type_enum(),
         Type::Void => context.void_type().as_any_type_enum(),
+        Type::Generic(_) => panic!(),
     }
 }
 
@@ -392,5 +398,6 @@ pub fn to_basic_llvm_type<'a>(
         Type::Boolean => context.bool_type().as_basic_type_enum(),
         Type::String => str_type.as_basic_type_enum(),
         Type::Void => panic!("cann't use void type as basic type"),
+        Type::Generic(_) => panic!(),
     }
 }

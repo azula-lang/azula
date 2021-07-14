@@ -7,7 +7,9 @@ pub Program: Vec<Statement> = <Statement+> => <>;
 
 pub Statement: Statement = {
     <l: @L> <le:Let> <r: @R> => Statement::Let(le.0, le.1, le.2, le.3, l, r),
+    <l: @L> <le:Reassign> <r: @R> => Statement::Reassign(le.0, le.1, l, r),
     <l: @L> <f:Function> <r: @R> => Statement::Function(f.0, f.1, f.2, f.3, l, r),
+    <l: @L> <f:Macro> <r: @R> => Statement::Macro(f.0, f.1, f.2, f.3, l, r),
     <l: @L> <ret:Return> <r: @R> => Statement::Return(ret, l, r),
     <l: @L> <i:If> <r: @R> => Statement::If(i.0, i.1, l, r),
     <l: @L> <exp:BoxedExpr> ";" <r: @R> => Statement::Expression(exp, l, r),
@@ -78,6 +80,7 @@ AzulaType: Type = {
     "float64" => Type::Float(64),
     "string" => Type::String,
     "bool" => Type::Boolean,
+    "T" => Type::Generic(0),
 }
 
 Mutability: String = {
@@ -96,12 +99,20 @@ Let: (Option<String>, String, Option<Type>, Box<Expr>) = {
     "let" <Mutability?> <Identifier> <TypeAnnotation?> "=" <BoxedExpr> ";"
 }
 
+Reassign: (String, Box<Expr>) = {
+    <Identifier> "=" <BoxedExpr> ";"
+}
+
 TypeAnnotation: Type = {
     ":" <AzulaType>
 }
 
 Function: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Statement>) = {
     "func" <Identifier> <Paren<Comma<TypedIdentifier>>?> <ReturnType?> <Brace<Statement*>>
+}
+
+Macro: (String, Option<Vec<(Type, String)>>, Option<Type>, Vec<Statement>) = {
+    "macro" <Identifier> <Paren<Comma<TypedIdentifier>>?> <ReturnType?> <Brace<Statement*>>
 }
 
 FunctionCall: (String, Vec<Expr>) = {
@@ -121,8 +132,8 @@ Return: Option<Box<Expr>> = {
 Num: f64 = r"[0-9]+(.[0-9]+)?" => f64::from_str(<>).unwrap();
 
 StringAllowedVals: String = {
-    <r#""[a-zA-Z%&,;\s\\]*""#> => <>.to_string(),
-    <r#"'[a-zA-Z%&,;\s\\]*'"#> => <>.to_string(),
+    <r#""[a-zA-Z%&,;:\s\\]*""#> => <>.to_string(),
+    <r#"'[a-zA-Z%&,;:\s\\]*'"#> => <>.to_string(),
 }
 
 StringVal: String = {
@@ -156,8 +167,8 @@ Delim<T, D>: Vec<T> = {
 };
 
 match {
-    r#""[a-zA-Z%&,;\s\\]*""#,
-    r#"'[a-zA-Z%&,;\s\\]*'"#,
+    r#""[a-zA-Z%&,;:\s\\]*""#,
+    r#"'[a-zA-Z%&,;:\s\\]*'"#,
     // r"[a-zA-Z_]+",
     r"//[^\n\r]*[\n\r]*" => { }, // `// comment`
     r"\s*" => { },

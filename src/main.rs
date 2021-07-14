@@ -55,7 +55,8 @@ fn main() {
                     l: location,
                     r: location + 1,
                 },
-                ParseError::UnrecognizedToken { token, .. } => AzulaError::InvalidToken {
+                ParseError::UnrecognizedToken { token, .. } => AzulaError::UnrecognisedToken {
+                    token: token.1.to_string(),
                     l: token.0,
                     r: token.2,
                 },

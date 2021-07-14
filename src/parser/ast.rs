@@ -22,7 +22,16 @@ pub enum Statement {
         usize,
         usize,
     ),
+    Reassign(String, Box<Expr>, usize, usize),
     Function(
+        String,
+        Option<Vec<(Type, String)>>,
+        Option<Type>,
+        Block,
+        usize,
+        usize,
+    ),
+    Macro(
         String,
         Option<Vec<(Type, String)>>,
         Option<Type>,
@@ -42,6 +51,8 @@ pub enum Type {
     String,
     Boolean,
     Void,
+
+    Generic(i32),
 }
 
 impl Type {
@@ -53,6 +64,7 @@ impl Type {
             "float64" => Some(Type::Float(64)),
             "string" => Some(Type::String),
             "bool" => Some(Type::Boolean),
+            "T" => Some(Type::Generic(0)),
             _ => None,
         }
     }

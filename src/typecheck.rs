@@ -7,6 +7,8 @@ use crate::{
 
 pub struct Typechecker {
     variables: HashMap<String, Type>,
+    variable_mutability: HashMap<String, bool>,
+    variable_definitions: HashMap<String, (usize, usize)>,
     functions: Vec<String>,
     function_returns: HashMap<String, Type>,
     function_params: HashMap<String, Vec<Type>>,
@@ -17,6 +19,8 @@ impl Default for Typechecker {
     fn default() -> Self {
         Typechecker {
             variables: HashMap::new(),
+            variable_mutability: HashMap::new(),
+            variable_definitions: HashMap::new(),
             functions: vec![],
             function_params: HashMap::new(),
             function_returns: HashMap::new(),
@@ -62,7 +66,7 @@ impl Typechecker {
 
     fn check(self: &mut Typechecker, stmt: Statement) -> (Type, Option<AzulaError>) {
         match stmt {
-            Statement::Let(_mutability, name, annotated_type, val, l, r) => {
+            Statement::Let(mutability, name, annotated_type, val, l, r) => {
                 let (typ, er) = self.check_expr(&val);
                 if er.is_some() {
                     return (Type::Void, er);
@@ -82,6 +86,9 @@ impl Typechecker {
                     }
                 }
 
+                self.variable_definitions.insert(name.clone(), (l, r));
+                self.variable_mutability
+                    .insert(name.clone(), mutability.is_some());
                 self.variables.insert(name, typ);
                 (Type::Void, None)
             }
@@ -133,6 +140,49 @@ impl Typechecker {
                 }
 
                 (Type::Void, None)
+            }
+            Statement::Macro(_, _, _, _, _, _) => panic!(),
+            Statement::Reassign(name, val, l, r) => {
+                let (typ, er) = self.check_expr(&val);
+                if er.is_some() {
+                    return (Type::Void, er);
+                }
+
+                if !self.variables.contains_key(&name) {
+                    return (
+                        Type::Void,
+                        Some(AzulaError::VariableNotFound { name, l, r }),
+                    );
+                }
+
+                if !self.variable_mutability.get(&name).unwrap() {
+                    let (variable_l, variable_r) = *self.variable_definitions.get(&name).unwrap();
+                    return (
+                        Type::Void,
+                        Some(AzulaError::VariableNotMutable {
+                            name,
+                            variable_l,
+                            variable_r,
+                            l,
+                            r,
+                        }),
+                    );
+                }
+
+                let annotated = *self.variables.get(&name).unwrap();
+                if annotated != typ {
+                    return (
+                        Type::Void,
+                        Some(AzulaError::VariableWrongType {
+                            annotated,
+                            found: typ,
+                            l,
+                            r,
+                        }),
+                    );
+                }
+
+                (Type::Void, er)
             }
         }
     }
