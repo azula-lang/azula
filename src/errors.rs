@@ -33,6 +33,14 @@ pub enum AzulaError {
         l: usize,
         r: usize,
     },
+    VariableReassignWrongType {
+        annotated: Type,
+        found: Type,
+        variable_l: usize,
+        variable_r: usize,
+        l: usize,
+        r: usize,
+    },
     VariableNotMutable {
         name: String,
         variable_l: usize,
@@ -80,6 +88,20 @@ impl AzulaError {
             AzulaError::VariableWrongType { l, r, .. } => {
                 vec![Label::primary(file_id, *l..*r).with_message(self.message())]
             }
+            AzulaError::VariableReassignWrongType {
+                l,
+                r,
+                variable_r,
+                variable_l,
+                annotated,
+                ..
+            } => {
+                vec![
+                    Label::primary(file_id, *l..*r).with_message(self.message()),
+                    Label::secondary(file_id, *variable_l..*variable_r)
+                        .with_message(format!("defined here with type {:?}", annotated)),
+                ]
+            }
             AzulaError::VariableNotMutable {
                 l,
                 r,
@@ -124,6 +146,12 @@ impl AzulaError {
                 "Variable has wrong type, value is {:?}, variable expects {:?}",
                 found, annotated
             ),
+            AzulaError::VariableReassignWrongType {
+                annotated, found, ..
+            } => format!(
+                "Variable has wrong type, value is {:?}, variable expects {:?}",
+                found, annotated
+            ),
             AzulaError::VariableNotMutable { name, .. } => {
                 format!("Variable {} is not mutable", name)
             }
@@ -142,10 +170,11 @@ impl AzulaError {
             AzulaError::FunctionNotFound { .. } => 2,
             AzulaError::VariableNotFound { .. } => 3,
             AzulaError::VariableWrongType { .. } => 4,
-            AzulaError::VariableNotMutable { .. } => 5,
-            AzulaError::InvalidToken { .. } => 6,
-            AzulaError::UnexpectedEOF { .. } => 7,
-            AzulaError::UnrecognisedToken { .. } => 8,
+            AzulaError::VariableReassignWrongType { .. } => 5,
+            AzulaError::VariableNotMutable { .. } => 6,
+            AzulaError::InvalidToken { .. } => 7,
+            AzulaError::UnexpectedEOF { .. } => 8,
+            AzulaError::UnrecognisedToken { .. } => 9,
         }
     }
 }

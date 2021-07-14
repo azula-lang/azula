@@ -155,8 +155,8 @@ impl Typechecker {
                     );
                 }
 
+                let (variable_l, variable_r) = *self.variable_definitions.get(&name).unwrap();
                 if !self.variable_mutability.get(&name).unwrap() {
-                    let (variable_l, variable_r) = *self.variable_definitions.get(&name).unwrap();
                     return (
                         Type::Void,
                         Some(AzulaError::VariableNotMutable {
@@ -173,11 +173,13 @@ impl Typechecker {
                 if annotated != typ {
                     return (
                         Type::Void,
-                        Some(AzulaError::VariableWrongType {
+                        Some(AzulaError::VariableReassignWrongType {
                             annotated,
                             found: typ,
                             l,
                             r,
+                            variable_l,
+                            variable_r,
                         }),
                     );
                 }
