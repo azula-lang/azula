@@ -44,10 +44,10 @@ impl Typechecker {
 
                     if let Some(parameters) = parameters {
                         self.function_params
-                            .insert(name, parameters.iter().map(|(t, _)| *t).collect());
+                            .insert(name, parameters.iter().map(|(t, _)| t.clone()).collect());
 
                         for (typ, name) in parameters.iter() {
-                            self.variables.insert(name.clone(), *typ);
+                            self.variables.insert(name.clone(), typ.clone());
                         }
                     }
                 }
@@ -169,7 +169,7 @@ impl Typechecker {
                     );
                 }
 
-                let annotated = *self.variables.get(&name).unwrap();
+                let annotated = self.variables.get(&name).unwrap().clone();
                 if annotated != typ {
                     return (
                         Type::Void,
@@ -204,7 +204,7 @@ impl Typechecker {
                     );
                 }
 
-                return (*self.variables.get(name).unwrap(), None);
+                return (self.variables.get(name).unwrap().clone(), None);
             }
             Expr::Boolean(_, _, _) => (Type::Boolean, None),
             Expr::String(_, _, _) => (Type::String, None),
@@ -240,31 +240,71 @@ impl Typechecker {
                     );
                 }
 
-                let parameters = self.function_params.get(name).unwrap();
-                for (i, expr) in params.iter().enumerate() {
+                if self.function_params.contains_key(name) {
+                    let parameters = self.function_params.get(name).unwrap();
+                    for (i, expr) in params.iter().enumerate() {
+                        let (typ, er) = self.check_expr(expr);
+                        if er.is_some() {
+                            return (Type::Void, er);
+                        }
+
+                        if typ != parameters[i] {
+                            let (function_l, function_r) =
+                                self.function_definitions.get(name).unwrap();
+                            let (l, r) = get_pos(expr);
+                            return (
+                                Type::Void,
+                                Some(AzulaError::FunctionIncorrectParams {
+                                    expected: parameters[i].clone(),
+                                    found: typ,
+                                    function_l: *function_l,
+                                    function_r: *function_r,
+                                    l,
+                                    r,
+                                }),
+                            );
+                        }
+                    }
+                }
+
+                return (self.function_returns.get(name).unwrap().clone(), None);
+            }
+            Expr::ArrayLiteral(vals, l, r) => {
+                let mut array_typ = None;
+                for expr in vals {
                     let (typ, er) = self.check_expr(expr);
                     if er.is_some() {
                         return (Type::Void, er);
                     }
 
-                    if typ != parameters[i] {
-                        let (function_l, function_r) = self.function_definitions.get(name).unwrap();
-                        let (l, r) = get_pos(expr);
-                        return (
-                            Type::Void,
-                            Some(AzulaError::FunctionIncorrectParams {
-                                expected: parameters[i],
-                                found: typ,
-                                function_l: *function_l,
-                                function_r: *function_r,
-                                l,
-                                r,
-                            }),
-                        );
+                    if let Some(array_type) = array_typ {
+                        if array_type != typ {
+                            return (
+                                Type::Void,
+                                Some(AzulaError::ArrayDifferentTypes {
+                                    array_type,
+                                    found: typ,
+                                    l: *l,
+                                    r: *r,
+                                }),
+                            );
+                        }
                     }
+                    array_typ = Some(typ);
                 }
 
-                return (*self.function_returns.get(name).unwrap(), None);
+                (Type::Array(Box::new(array_typ.unwrap())), None)
+            }
+            Expr::ArrayIndex(arr, _, l, r) => {
+                let (arr_type, er) = self.check_expr(&arr);
+                if er.is_some() {
+                    return (Type::Void, er);
+                }
+
+                match arr_type {
+                    Type::Array(x) => (*x, None),
+                    _ => (Type::Void, Some(AzulaError::NonArrayIndex { l: *l, r: *r })),
+                }
             }
         }
     }
@@ -278,5 +318,7 @@ fn get_pos(exp: &Expr) -> (usize, usize) {
         Expr::String(_, l, r) => (l, r),
         Expr::Op(_, _, _, l, r) => (l, r),
         Expr::FunctionCall(_, _, l, r) => (l, r),
+        Expr::ArrayLiteral(_, l, r) => (l, r),
+        Expr::ArrayIndex(_, _, l, r) => (l, r),
     }
 }

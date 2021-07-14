@@ -68,6 +68,8 @@ Term: Expr = {
     <l: @L> <b:Bool> <r: @R> => Expr::Boolean(b, l, r),
     <l: @L> <i:Identifier> <r: @R> => Expr::Identifier(i, l, r),
     <l: @L> <f:FunctionCall> <r: @R> => Expr::FunctionCall(f.0, f.1, l, r),
+    <l: @L> <f:ArrayLiteral> <r: @R> => Expr::ArrayLiteral(f, l, r),
+    <l: @L> <f:ArrayIndex> <r: @R> => Expr::ArrayIndex(Box::new(f.0), Box::new(f.1), l, r),
     "(" <Expr> ")",
 };
 
@@ -81,6 +83,7 @@ AzulaType: Type = {
     "string" => Type::String,
     "bool" => Type::Boolean,
     "T" => Type::Generic(0),
+    "array[" <AzulaType> "]" => Type::Array(Box::new(<>)),
 }
 
 Mutability: String = {
@@ -143,6 +146,14 @@ StringVal: String = {
 Bool: bool = {
     "true" => true,
     "false" => false,
+}
+
+ArrayLiteral: Vec<Expr> = {
+    "[" <Comma<Expr>> "]"
+}
+
+ArrayIndex: (Expr, Expr) = {
+    <Term> "[" <Expr> "]"
 }
 
 If: (Box<Expr>, Vec<Statement>) = {

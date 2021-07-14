@@ -61,6 +61,16 @@ pub enum AzulaError {
         l: usize,
         r: usize,
     },
+    ArrayDifferentTypes {
+        array_type: Type,
+        found: Type,
+        l: usize,
+        r: usize,
+    },
+    NonArrayIndex {
+        l: usize,
+        r: usize,
+    },
 }
 
 impl AzulaError {
@@ -124,6 +134,12 @@ impl AzulaError {
             AzulaError::UnrecognisedToken { l, r, .. } => {
                 vec![Label::primary(file_id, *l..*r).with_message(self.message())]
             }
+            AzulaError::ArrayDifferentTypes { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
+            }
+            AzulaError::NonArrayIndex { l, r } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
+            }
         }
     }
 
@@ -160,6 +176,15 @@ impl AzulaError {
             AzulaError::UnrecognisedToken { token, .. } => {
                 format!("Invalid token {} found", token)
             }
+            AzulaError::ArrayDifferentTypes {
+                array_type, found, ..
+            } => {
+                format!(
+                    "Mismatched array values, array is type {:?}, found {:?}",
+                    array_type, found
+                )
+            }
+            AzulaError::NonArrayIndex { .. } => "Cannot index non-array".to_string(),
         }
     }
 
@@ -175,6 +200,8 @@ impl AzulaError {
             AzulaError::InvalidToken { .. } => 7,
             AzulaError::UnexpectedEOF { .. } => 8,
             AzulaError::UnrecognisedToken { .. } => 9,
+            AzulaError::ArrayDifferentTypes { .. } => 10,
+            AzulaError::NonArrayIndex { .. } => 11,
         }
     }
 }

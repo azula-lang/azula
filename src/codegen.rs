@@ -39,7 +39,9 @@ impl<'a> Compiler<'a> {
                     // Convert the parameters from Azula types to LLVM types
                     let llvm_params = if let Some(x) = &params {
                         x.iter()
-                            .map(|(typ, _)| to_basic_llvm_type(self.context, self.str_type, *typ))
+                            .map(|(typ, _)| {
+                                to_basic_llvm_type(self.context, self.str_type, typ.clone())
+                            })
                             .collect()
                     } else {
                         vec![]
@@ -67,6 +69,9 @@ impl<'a> Compiler<'a> {
                     if llvm_ret.is_pointer_type() {
                         function_type = llvm_ret.into_pointer_type().fn_type(&llvm_params, false);
                     }
+                    if llvm_ret.is_array_type() {
+                        function_type = llvm_ret.into_array_type().fn_type(&llvm_params, false)
+                    }
                     if llvm_ret.is_void_type() {
                         function_type = llvm_ret.into_void_type().fn_type(&llvm_params, false)
                     }
@@ -83,7 +88,7 @@ impl<'a> Compiler<'a> {
                     if let Some(p) = &params {
                         for (index, (typ, name)) in p.iter().enumerate() {
                             let alloca = self.builder.build_alloca(
-                                to_basic_llvm_type(self.context, self.str_type, *typ),
+                                to_basic_llvm_type(self.context, self.str_type, typ.clone()),
                                 "param",
                             );
                             self.builder
@@ -237,6 +242,60 @@ impl<'a> Compiler<'a> {
                     .const_int(*b as u64, false)
                     .as_basic_value_enum(),
             )),
+            Expr::ArrayLiteral(vals, ..) => {
+                let llvm_vals = vals
+                    .iter()
+                    .map(|expr| self.gen_expr(current_func, expr).unwrap())
+                    .collect::<Vec<_>>();
+
+                Some(Box::new(match llvm_vals[0].get_type() {
+                    BasicTypeEnum::IntType(_) => self
+                        .context
+                        .i32_type()
+                        .const_array(
+                            &llvm_vals
+                                .iter()
+                                .map(|expr| expr.into_int_value())
+                                .collect::<Vec<_>>(),
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::ArrayType(_) => todo!(),
+                    BasicTypeEnum::FloatType(_) => todo!(),
+                    BasicTypeEnum::PointerType(l) => l
+                        .const_array(
+                            &llvm_vals
+                                .iter()
+                                .map(|expr| expr.into_pointer_value())
+                                .collect::<Vec<_>>(),
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::StructType(_) => todo!(),
+                    BasicTypeEnum::VectorType(_) => todo!(),
+                }))
+            }
+            Expr::ArrayIndex(array, index, _, _) => {
+                let arr = *self.gen_expr(current_func, &array).unwrap();
+
+                let index = *self.gen_expr(current_func, &index).unwrap();
+
+                let ptr = self
+                    .builder
+                    .build_alloca(arr.as_basic_value_enum().get_type(), "array");
+                self.builder.build_store(ptr, arr);
+
+                unsafe {
+                    let val_ptr = self.builder.build_in_bounds_gep(
+                        ptr,
+                        &[
+                            self.context.i32_type().const_int(0, false),
+                            index.into_int_value(),
+                        ],
+                        "index",
+                    );
+
+                    Some(Box::new(self.builder.build_load(val_ptr, "indexed")))
+                }
+            }
         }
     }
 
@@ -376,6 +435,40 @@ pub fn to_any_llvm_type<'a>(
         Type::String => str_type.as_any_type_enum(),
         Type::Void => context.void_type().as_any_type_enum(),
         Type::Generic(_) => panic!(),
+        Type::Array(nested) => match *nested {
+            Type::Integer(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_int_type()
+                    .array_type(10);
+                return n.as_any_type_enum();
+            }
+            Type::Float(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_float_type()
+                    .array_type(10);
+                return n.as_any_type_enum();
+            }
+            Type::String => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_pointer_type()
+                    .array_type(10);
+                return n.as_any_type_enum();
+            }
+            Type::Boolean => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_int_type()
+                    .array_type(10);
+                return n.as_any_type_enum();
+            }
+            Type::Void => panic!("cannot have an array of void type"),
+            Type::Array(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_array_type()
+                    .array_type(10);
+                return n.as_any_type_enum();
+            }
+            Type::Generic(_) => panic!("cannot have an array of generic types"),
+        },
     }
 }
 
@@ -399,5 +492,39 @@ pub fn to_basic_llvm_type<'a>(
         Type::String => str_type.as_basic_type_enum(),
         Type::Void => panic!("cann't use void type as basic type"),
         Type::Generic(_) => panic!(),
+        Type::Array(nested) => match *nested {
+            Type::Integer(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_int_type()
+                    .array_type(10);
+                return n.as_basic_type_enum();
+            }
+            Type::Float(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_float_type()
+                    .array_type(10);
+                return n.as_basic_type_enum();
+            }
+            Type::String => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_int_type()
+                    .array_type(10);
+                return n.as_basic_type_enum();
+            }
+            Type::Boolean => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_int_type()
+                    .array_type(10);
+                return n.as_basic_type_enum();
+            }
+            Type::Void => panic!("cannot have an array of void type"),
+            Type::Array(_) => {
+                let n = to_any_llvm_type(context, str_type, *nested)
+                    .into_array_type()
+                    .array_type(10);
+                return n.as_basic_type_enum();
+            }
+            Type::Generic(_) => panic!("cannot have an array of generic types"),
+        },
     }
 }

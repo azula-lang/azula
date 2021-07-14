@@ -7,6 +7,8 @@ pub enum Expr {
     Identifier(String, usize, usize),
     Boolean(bool, usize, usize),
     String(String, usize, usize),
+    ArrayLiteral(Vec<Expr>, usize, usize),
+    ArrayIndex(Box<Expr>, Box<Expr>, usize, usize),
 
     Op(Box<Expr>, Opcode, Box<Expr>, usize, usize),
     FunctionCall(String, Vec<Expr>, usize, usize),
@@ -44,13 +46,14 @@ pub enum Statement {
     If(Box<Expr>, Block, usize, usize),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Integer(i32),
     Float(i32),
     String,
     Boolean,
     Void,
+    Array(Box<Type>),
 
     Generic(i32),
 }
