@@ -36,77 +36,22 @@ impl<'a> Compiler<'a> {
         for statement in parse_tree {
             match statement {
                 Statement::Function(name, params, return_type, body, _, _) => {
-                    // Convert the parameters from Azula types to LLVM types
-                    let llvm_params = if let Some(x) = &params {
-                        x.iter()
-                            .map(|(typ, _)| {
-                                to_basic_llvm_type(self.context, self.str_type, typ.clone())
-                            })
-                            .collect()
-                    } else {
-                        vec![]
-                    };
-
-                    // Set the function to private unless it's main - TODO define some way of giving functions a privacy
-                    let mut linkage = Some(Linkage::Private);
-                    if name == "main" {
-                        linkage = None;
-                    }
-
-                    // Define the function return type
-                    let mut llvm_ret: AnyTypeEnum = self.context.void_type().as_any_type_enum();
-                    if let Some(ret) = return_type {
-                        llvm_ret = to_any_llvm_type(self.context, self.str_type, ret)
-                    }
-
-                    let mut function_type = self.context.void_type().fn_type(&[], false);
-                    if llvm_ret.is_int_type() {
-                        function_type = llvm_ret.into_int_type().fn_type(&llvm_params, false);
-                    }
-                    if llvm_ret.is_float_type() {
-                        function_type = llvm_ret.into_float_type().fn_type(&llvm_params, false);
-                    }
-                    if llvm_ret.is_pointer_type() {
-                        function_type = llvm_ret.into_pointer_type().fn_type(&llvm_params, false);
-                    }
-                    if llvm_ret.is_array_type() {
-                        function_type = llvm_ret.into_array_type().fn_type(&llvm_params, false)
-                    }
-                    if llvm_ret.is_void_type() {
-                        function_type = llvm_ret.into_void_type().fn_type(&llvm_params, false)
-                    }
-
-                    // Add the llvm function to the module
-                    let llvm_func = self
-                        .module
-                        .add_function(name.as_str(), function_type, linkage);
-
-                    // Create the entry block for the code
-                    let entry = self.context.append_basic_block(llvm_func, "entry");
-                    self.builder.position_at_end(entry);
-
-                    if let Some(p) = &params {
-                        for (index, (typ, name)) in p.iter().enumerate() {
-                            let alloca = self.builder.build_alloca(
-                                to_basic_llvm_type(self.context, self.str_type, typ.clone()),
-                                "param",
-                            );
-                            self.builder
-                                .build_store(alloca, llvm_func.get_params()[index]);
-                            self.ptrs.insert(name.clone(), alloca);
+                    self.gen_func(name, params, return_type, body);
+                }
+                Statement::Impl(typ, funcs, ..) => {
+                    for f in funcs {
+                        match f {
+                            Statement::Function(name, params, return_type, body, _, _) => {
+                                self.gen_func(
+                                    to_method_name(typ.clone(), name),
+                                    params,
+                                    return_type,
+                                    body,
+                                );
+                            }
+                            _ => continue,
                         }
                     }
-
-                    for stmt in &body {
-                        self.gen_stmt(&llvm_func, stmt.clone());
-                    }
-
-                    // Check if the function ends with a return - otherwise add one
-                    let x = body.last().unwrap();
-                    match x.clone() {
-                        Statement::Return(_, _, _) => continue,
-                        _ => self.builder.build_return(None),
-                    };
                 }
                 _ => panic!("non-function at top level"),
             }
@@ -296,6 +241,31 @@ impl<'a> Compiler<'a> {
                     Some(Box::new(self.builder.build_load(val_ptr, "indexed")))
                 }
             }
+            Expr::MethodCall(left, name, values, data_type, ..) => {
+                let left = *self.gen_expr(current_func, &left).unwrap();
+
+                let mut llvm_vals = values
+                    .iter()
+                    .map(|expr| {
+                        self.gen_expr(current_func, expr)
+                            .unwrap()
+                            .as_basic_value_enum()
+                    })
+                    .collect::<Vec<_>>();
+
+                llvm_vals.insert(0, left);
+
+                let func = self.module.get_function(&to_method_name(
+                    data_type.clone().unwrap().clone(),
+                    name.clone(),
+                ));
+
+                self.builder
+                    .build_call(func.unwrap(), &llvm_vals, "call")
+                    .try_as_basic_value()
+                    .left()
+                    .map(Box::new)
+            }
         }
     }
 
@@ -413,6 +383,84 @@ impl<'a> Compiler<'a> {
             )),
         };
     }
+
+    fn gen_func(
+        self: &mut Compiler<'a>,
+        name: String,
+        params: Option<Vec<(Type, String)>>,
+        return_type: Option<Type>,
+        body: Vec<Statement>,
+    ) {
+        // Convert the parameters from Azula types to LLVM types
+        let llvm_params = if let Some(x) = &params {
+            x.iter()
+                .map(|(typ, _)| to_basic_llvm_type(self.context, self.str_type, typ.clone()))
+                .collect()
+        } else {
+            vec![]
+        };
+
+        // Set the function to private unless it's main - TODO define some way of giving functions a privacy
+        let mut linkage = Some(Linkage::Private);
+        if name == "main" {
+            linkage = None;
+        }
+
+        // Define the function return type
+        let mut llvm_ret: AnyTypeEnum = self.context.void_type().as_any_type_enum();
+        if let Some(ret) = return_type {
+            llvm_ret = to_any_llvm_type(self.context, self.str_type, ret)
+        }
+
+        let mut function_type = self.context.void_type().fn_type(&[], false);
+        if llvm_ret.is_int_type() {
+            function_type = llvm_ret.into_int_type().fn_type(&llvm_params, false);
+        }
+        if llvm_ret.is_float_type() {
+            function_type = llvm_ret.into_float_type().fn_type(&llvm_params, false);
+        }
+        if llvm_ret.is_pointer_type() {
+            function_type = llvm_ret.into_pointer_type().fn_type(&llvm_params, false);
+        }
+        if llvm_ret.is_array_type() {
+            function_type = llvm_ret.into_array_type().fn_type(&llvm_params, false)
+        }
+        if llvm_ret.is_void_type() {
+            function_type = llvm_ret.into_void_type().fn_type(&llvm_params, false)
+        }
+
+        // Add the llvm function to the module
+        let llvm_func = self
+            .module
+            .add_function(name.as_str(), function_type, linkage);
+
+        // Create the entry block for the code
+        let entry = self.context.append_basic_block(llvm_func, "entry");
+        self.builder.position_at_end(entry);
+
+        if let Some(p) = &params {
+            for (index, (typ, name)) in p.iter().enumerate() {
+                let alloca = self.builder.build_alloca(
+                    to_basic_llvm_type(self.context, self.str_type, typ.clone()),
+                    "param",
+                );
+                self.builder
+                    .build_store(alloca, llvm_func.get_params()[index]);
+                self.ptrs.insert(name.clone(), alloca);
+            }
+        }
+
+        for stmt in &body {
+            self.gen_stmt(&llvm_func, stmt.clone());
+        }
+
+        // Check if the function ends with a return - otherwise add one
+        let x = body.last().unwrap();
+        match x.clone() {
+            Statement::Return(_, _, _) => return,
+            _ => self.builder.build_return(None),
+        };
+    }
 }
 
 pub fn to_any_llvm_type<'a>(
@@ -527,4 +575,21 @@ pub fn to_basic_llvm_type<'a>(
             Type::Generic(_) => panic!("cannot have an array of generic types"),
         },
     }
+}
+
+pub fn to_method_name(typ: Type, name: String) -> String {
+    format!(
+        "__{}__{}",
+        match typ {
+            Type::Integer(_) => "int",
+            Type::Float(_) => "float",
+            Type::String => "string",
+            Type::Boolean => "bool",
+            Type::Void => "void",
+            Type::Array(_) => "array",
+            Type::Generic(_) => "generic",
+        }
+        .to_string(),
+        name
+    )
 }

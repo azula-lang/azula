@@ -43,7 +43,7 @@ fn main() {
     let file_id = files.add(file, source_file.clone());
 
     let parse_res = parser::parser::ProgramParser::new().parse(&source_file);
-    let parse_tree = match parse_res {
+    let mut parse_tree = match parse_res {
         Ok(p) => p,
         Err(e) => {
             let error = match e {
@@ -81,7 +81,7 @@ fn main() {
         }
     };
 
-    let er = Typechecker::default().typecheck(parse_tree.clone());
+    let er = Typechecker::default().typecheck(&mut parse_tree);
     if let Some(er) = er {
         let diagnostic = Diagnostic::error()
             .with_message(er.message())

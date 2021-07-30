@@ -13,6 +13,7 @@ pub Statement: Statement = {
     <l: @L> <ret:Return> <r: @R> => Statement::Return(ret, l, r),
     <l: @L> <i:If> <r: @R> => Statement::If(i.0, i.1, l, r),
     <l: @L> <exp:BoxedExpr> ";" <r: @R> => Statement::Expression(exp, l, r),
+    <l: @L> <f:Impl> <r: @R> => Statement::Impl(f.0, f.1, l, r),
 }
 
 pub Expr: Expr = {
@@ -68,6 +69,7 @@ Term: Expr = {
     <l: @L> <b:Bool> <r: @R> => Expr::Boolean(b, l, r),
     <l: @L> <i:Identifier> <r: @R> => Expr::Identifier(i, l, r),
     <l: @L> <f:FunctionCall> <r: @R> => Expr::FunctionCall(f.0, f.1, l, r),
+    <l: @L> <f:Method> <r: @R> => Expr::MethodCall(Box::new(f.0), f.1.0, f.1.1, None, l, r),
     <l: @L> <f:ArrayLiteral> <r: @R> => Expr::ArrayLiteral(f, l, r),
     <l: @L> <f:ArrayIndex> <r: @R> => Expr::ArrayIndex(Box::new(f.0), Box::new(f.1), l, r),
     "(" <Expr> ")",
@@ -124,6 +126,14 @@ FunctionCall: (String, Vec<Expr>) = {
 
 FunctionCallStmt: (String, Vec<Expr>) = {
     <Identifier> <Paren<Comma<Expr>>> ";"
+}
+
+Method: (Expr, (String, Vec<Expr>)) = {
+    <Term> "." <FunctionCall>
+}
+
+Impl: (Type, Vec<Statement>) = {
+    "impl" <AzulaType> <Brace<Statement*>>
 }
 
 ReturnType: Type = ":" <AzulaType> => <>; 

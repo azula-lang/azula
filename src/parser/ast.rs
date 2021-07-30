@@ -12,6 +12,7 @@ pub enum Expr {
 
     Op(Box<Expr>, Opcode, Box<Expr>, usize, usize),
     FunctionCall(String, Vec<Expr>, usize, usize),
+    MethodCall(Box<Expr>, String, Vec<Expr>, Option<Type>, usize, usize),
 }
 
 #[derive(Debug, Clone)]
@@ -44,9 +45,10 @@ pub enum Statement {
     Return(Option<Box<Expr>>, usize, usize),
     Expression(Box<Expr>, usize, usize),
     If(Box<Expr>, Block, usize, usize),
+    Impl(Type, Vec<Statement>, usize, usize),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Integer(i32),
     Float(i32),

@@ -1,0 +1,13 @@
+impl int {
+    func print(self: int) {
+        printf("%d", self);
+    }
+
+    func add(self: int, b: int): int {
+        return self + b;
+    }
+}
+
+func main {
+    5.add(10).print();
+}

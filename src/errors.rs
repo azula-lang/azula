@@ -71,6 +71,12 @@ pub enum AzulaError {
         l: usize,
         r: usize,
     },
+    MethodNotFound {
+        impl_type: Type,
+        method_name: String,
+        l: usize,
+        r: usize,
+    },
 }
 
 impl AzulaError {
@@ -140,6 +146,9 @@ impl AzulaError {
             AzulaError::NonArrayIndex { l, r } => {
                 vec![Label::primary(file_id, *l..*r).with_message(self.message())]
             }
+            AzulaError::MethodNotFound { l, r, .. } => {
+                vec![Label::primary(file_id, *l..*r).with_message(self.message())]
+            }
         }
     }
 
@@ -185,6 +194,16 @@ impl AzulaError {
                 )
             }
             AzulaError::NonArrayIndex { .. } => "Cannot index non-array".to_string(),
+            AzulaError::MethodNotFound {
+                impl_type,
+                method_name,
+                ..
+            } => {
+                format!(
+                    "Method {:?} for type {:?} not found",
+                    method_name, impl_type
+                )
+            }
         }
     }
 
@@ -202,6 +221,7 @@ impl AzulaError {
             AzulaError::UnrecognisedToken { .. } => 9,
             AzulaError::ArrayDifferentTypes { .. } => 10,
             AzulaError::NonArrayIndex { .. } => 11,
+            AzulaError::MethodNotFound { .. } => 12,
         }
     }
 }
