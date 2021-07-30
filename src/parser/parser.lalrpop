@@ -95,7 +95,7 @@ Identifier: String = {
 }
 
 TypedIdentifier: (Type, String) = {
-    <AzulaType> <Identifier>
+    <i:Identifier> ":" <t:AzulaType> => (t, i.to_string()),
 }
 
 Let: (Option<String>, String, Option<Type>, Box<Expr>) = {

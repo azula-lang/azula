@@ -1,5 +1,5 @@
 // Recursive fibonacci function
-func fib(int n): int {
+func fib(n: int): int {
     if n == 0 || n == 1 {
         return n;
     }

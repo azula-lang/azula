@@ -1,4 +1,4 @@
-func fizzbuzz(int n) {
+func fizzbuzz(n: int) {
     if n > 100 {
         return;
     }
