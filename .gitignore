@@ -7,10 +7,11 @@
 # Unignore all dirs
 !*/
 
-/target
+/**/target
 *.lock
 .build/
 *.ll
 *.azl
 
 !*/*.azl
+.DS_STORE
