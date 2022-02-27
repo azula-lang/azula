@@ -29,15 +29,15 @@ azula llir FILENAME
 ### Example Code
 
 ```
-func fib(int x): int {
-    if(x == 0 || x == 1) {
-        return x
+func fib(x: int): int {
+    if x == 0 || x == 1 {
+        return x;
     }
-    return fib(x - 1) + fib(x - 2)
+    return fib(x - 1) + fib(x - 2);
 }
 
 func main {
-    printf("%d", fib(15))
+    printf("%d", fib(15));
 }
 ```
 
