@@ -1,11 +1,10 @@
-func fib(int x): int {
-    if(x == 0 || x == 1) {
-        return x
+func fib(n: int): int {
+    if n <= 1 {
+        return n;
     }
-
-    return fib(x-1) + fib(x-2)
+    return fib(n - 1) + fib(n - 2);
 }
 
 func main {
-    printf("%d", fib(25))
+    printf("%d\n", fib(46));
 }
