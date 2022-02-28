@@ -111,12 +111,10 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
 
         codegen.build_object_file(".build/out.o");
 
-        Command::new("clang")
+        Command::new("cc")
             .arg("-otest")
             .arg(".build/out.o")
             .arg("-flto")
-            // -lSystem seems to have gone missing?
-            .arg("-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib")
             .arg("-march=native")
             .spawn()
             .unwrap()
