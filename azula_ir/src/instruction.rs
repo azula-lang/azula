@@ -8,6 +8,7 @@ pub enum Instruction<'a> {
     Store(String, Value, AzulaType<'a>),
     LoadArg(usize, usize, AzulaType<'a>),
     ConstInt(i64, usize),
+    ConstFloat(f64, usize),
     ConstTrue(usize),
     ConstFalse(usize),
     Add(Value, Value, usize),
@@ -15,6 +16,7 @@ pub enum Instruction<'a> {
     Mul(Value, Value, usize),
     Div(Value, Value, usize),
     Mod(Value, Value, usize),
+    Pow(Value, Value, usize),
     Or(Value, Value, usize),
     And(Value, Value, usize),
     Eq(Value, Value, usize),
@@ -28,6 +30,7 @@ pub enum Instruction<'a> {
     FunctionCall(String, Vec<Value>, usize),
     Jcond(Value, String, String),
     Jump(String),
+    Pointer(String, usize),
 }
 
 impl<'a> Display for Instruction<'a> {
@@ -41,6 +44,7 @@ impl<'a> Display for Instruction<'a> {
                 write!(f, "%{}: load_arg %{} {:?}", dest, arg, typ)
             }
             Instruction::ConstInt(val, dest) => write!(f, "%{}: const_int {}", dest, val),
+            Instruction::ConstFloat(val, dest) => write!(f, "%{}: const_float {}", dest, val),
             Instruction::ConstTrue(dest) => write!(f, "%{}: const_true", dest),
             Instruction::ConstFalse(dest) => write!(f, "%{}: const_false", dest),
             Instruction::Add(val1, val2, dest) => write!(f, "%{}: add {} {}", dest, val1, val2),
@@ -48,6 +52,7 @@ impl<'a> Display for Instruction<'a> {
             Instruction::Mul(val1, val2, dest) => write!(f, "%{}: mul {} {}", dest, val1, val2),
             Instruction::Div(val1, val2, dest) => write!(f, "%{}: div {} {}", dest, val1, val2),
             Instruction::Mod(val1, val2, dest) => write!(f, "%{}: mod {} {}", dest, val1, val2),
+            Instruction::Pow(val1, val2, dest) => write!(f, "%{}: pow {} {}", dest, val1, val2),
             Instruction::Or(val1, val2, dest) => write!(f, "%{}: or {} {}", dest, val1, val2),
             Instruction::And(val1, val2, dest) => write!(f, "%{}: and {} {}", dest, val1, val2),
             Instruction::Eq(val1, val2, dest) => write!(f, "%{}: eq {} {}", dest, val1, val2),
@@ -74,6 +79,7 @@ impl<'a> Display for Instruction<'a> {
             Instruction::Jump(block) => {
                 write!(f, "jump {}", block)
             }
+            Instruction::Pointer(val, dest) => write!(f, "%{}: ptr {}", dest, val),
         }
     }
 }

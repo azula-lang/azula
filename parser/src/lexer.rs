@@ -183,6 +183,8 @@ impl<'a> Lexer<'a> {
             "true" => Token::new(TokenKind::True, start, self.index),
             "false" => Token::new(TokenKind::False, start, self.index),
             "if" => Token::new(TokenKind::If, start, self.index),
+            "extern" => Token::new(TokenKind::Extern, start, self.index),
+            "varargs" => Token::new(TokenKind::VarArgs, start, self.index),
             _ => Token::new(TokenKind::Identifier(value), start, self.index),
         }
     }

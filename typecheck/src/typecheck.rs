@@ -15,6 +15,7 @@ pub struct Typechecker<'a> {
 struct FunctionDefinition<'a> {
     name: &'a str,
     args: Vec<(AzulaType<'a>, &'a str)>,
+    varargs: bool,
     returns: AzulaType<'a>,
 }
 
@@ -70,6 +71,29 @@ impl<'a> Typechecker<'a> {
                             name,
                             FunctionDefinition {
                                 name,
+                                varargs: true,
+                                args: args_converted.clone(),
+                                returns: returns_converted.clone(),
+                            },
+                        );
+                    }
+                    Statement::ExternFunction {
+                        name,
+                        varargs,
+                        args,
+                        returns,
+                        ..
+                    } => {
+                        let args_converted: Vec<_> =
+                            args.iter().map(|typ| (typ.clone(), "xyz")).collect();
+
+                        let returns_converted: AzulaType = returns.clone().into();
+
+                        self.functions.insert(
+                            name,
+                            FunctionDefinition {
+                                name,
+                                varargs: false,
                                 args: args_converted.clone(),
                                 returns: returns_converted.clone(),
                             },
@@ -101,6 +125,7 @@ impl<'a> Typechecker<'a> {
     ) -> Result<Statement<'a>, String> {
         match stmt {
             Statement::Function { .. } => self.typecheck_function(stmt),
+            Statement::ExternFunction { .. } => Ok(stmt),
             _ => unreachable!(),
         }
     }
@@ -288,6 +313,10 @@ impl<'a> Typechecker<'a> {
                 expr.typed = AzulaType::Int;
                 Ok((expr.clone(), AzulaType::Int))
             }
+            Expression::Float(_) => {
+                expr.typed = AzulaType::Float;
+                Ok((expr.clone(), AzulaType::Float))
+            }
             Expression::Boolean(_) => {
                 expr.typed = AzulaType::Bool;
                 Ok((expr.clone(), AzulaType::Bool))
@@ -315,7 +344,7 @@ impl<'a> Typechecker<'a> {
                     Expression::Identifier(i) => match self.functions.get(&i.as_str()) {
                         Some(f) => &f.returns,
                         None => {
-                            if i == "printf" {
+                            if i == "printf" || i == "sprintf" || i == "puts" {
                                 &AzulaType::Void
                             } else {
                                 self.errors.push(AzulaError::new(
@@ -375,6 +404,21 @@ impl<'a> Typechecker<'a> {
                     AzulaType::Bool,
                 ));
             }
+            Expression::Pointer(exp) => {
+                let (node, typ) = match self.typecheck_expression(exp.deref().clone(), env) {
+                    Ok((node, typ)) => (node, typ),
+                    Err(e) => return Err(e),
+                };
+
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::Pointer(Rc::new(node)),
+                        typed: AzulaType::Pointer(Rc::new(typ.clone())),
+                        span: expr.span,
+                    },
+                    AzulaType::Pointer(Rc::new(typ)),
+                ));
+            }
         }
     }
 
@@ -395,19 +439,20 @@ impl<'a> Typechecker<'a> {
             };
 
             let allowed = hashmap! {
-                Operator::Add => vec![AzulaType::Int],
-                Operator::Sub => vec![AzulaType::Int],
-                Operator::Mul => vec![AzulaType::Int],
-                Operator::Div => vec![AzulaType::Int],
-                Operator::Mod => vec![AzulaType::Int],
+                Operator::Add => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Sub => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Mul => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Div => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Mod => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Power => vec![AzulaType::Int, AzulaType::Float],
                 Operator::Or => vec![AzulaType::Bool],
                 Operator::And => vec![AzulaType::Bool],
-                Operator::Eq => vec![AzulaType::Int],
-                Operator::Neq => vec![AzulaType::Int],
-                Operator::Lt => vec![AzulaType::Int],
-                Operator::Lte => vec![AzulaType::Int],
-                Operator::Gt => vec![AzulaType::Int],
-                Operator::Gte => vec![AzulaType::Int],
+                Operator::Eq => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Neq => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Lt => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Lte => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Gt => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Gte => vec![AzulaType::Int, AzulaType::Float],
             };
 
             let allowed = allowed.get(operator).unwrap();
@@ -565,6 +610,33 @@ impl<'a> Typechecker<'a> {
                         left_typ,
                     ))
                 }
+                Operator::Power => {
+                    if left_typ != right_typ {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::MismatchedTypes(
+                                format!("{:?}", left_typ),
+                                format!("{:?}", right_typ),
+                            ),
+                            left.span.start,
+                            right.span.end,
+                        ));
+                        return Err("mismatched types in infix".to_string());
+                    }
+
+                    expr.typed = left.clone().typed;
+                    Ok((
+                        ExpressionNode {
+                            expression: Expression::Infix(
+                                Rc::new(left),
+                                operator.clone(),
+                                Rc::new(right),
+                            ),
+                            typed: left_typ.clone().into(),
+                            span: expr.span,
+                        },
+                        left_typ,
+                    ))
+                }
                 Operator::Or
                 | Operator::And
                 | Operator::Eq
@@ -623,6 +695,7 @@ mod tests {
             Statement::Assign(
                 true,
                 "test".to_string(),
+                None,
                 ExpressionNode {
                     expression: Expression::Integer(5),
                     typed: AzulaType::Infer,

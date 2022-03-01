@@ -4,6 +4,7 @@ use std::rc::Rc;
 pub enum AzulaType<'a> {
     Int,
     Str,
+    Float,
     Bool,
     Void,
     Pointer(Rc<AzulaType<'a>>),
@@ -17,6 +18,7 @@ impl<'a> From<&'a str> for AzulaType<'a> {
         match val {
             "int" => Self::Int,
             "str" => Self::Str,
+            "float" => Self::Float,
             "bool" => Self::Bool,
             "void" => Self::Void,
             _ => Self::Named(val),

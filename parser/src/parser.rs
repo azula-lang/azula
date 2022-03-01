@@ -46,8 +46,10 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::Function => self.parse_function(),
+            TokenKind::Extern => self.parse_extern_function(),
             TokenKind::Return => self.parse_return(),
-            TokenKind::Var => self.parse_var(),
+            TokenKind::Var => self.parse_assign(true),
+            TokenKind::Const => self.parse_assign(false),
             TokenKind::If => self.parse_if(),
             TokenKind::SemiColon => {
                 self.lexer.next();
@@ -146,6 +148,69 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_extern_function(&mut self) -> Option<Statement<'a>> {
+        // extern
+        let start_token = self.lexer.next().unwrap();
+
+        let next = self.lexer.next().unwrap();
+
+        let varargs = match next.kind {
+            TokenKind::VarArgs => {
+                self.lexer.next();
+                true
+            }
+            _ => false,
+        };
+
+        // Parse name of the function
+        let tok = self.lexer.next();
+        let ident = match tok {
+            Some(v) if matches!(v.kind, TokenKind::Identifier(_)) => {
+                if let TokenKind::Identifier(val) = v.kind {
+                    val
+                } else {
+                    "anon"
+                }
+            }
+            _ => return None,
+        };
+
+        // Parse function arguments
+        let mut args = vec![];
+        if let Some(tok) = self.lexer.peek() {
+            if tok.kind == TokenKind::BracketOpen {
+                args = self.parse_type_list(TokenKind::BracketOpen);
+            }
+        }
+
+        // Parse return type
+        let mut returns = AzulaType::Void;
+        if let Some(tok) = self.lexer.peek() {
+            // If it's a colon, we have a type
+            if tok.kind == TokenKind::Colon {
+                self.lexer.next();
+
+                returns = self.parse_type();
+            }
+        }
+        if !self.expect_peek(TokenKind::SemiColon) {
+            return None;
+        }
+
+        let end_token = self.lexer.next().unwrap();
+
+        Some(Statement::ExternFunction {
+            name: ident,
+            varargs,
+            args,
+            returns,
+            span: Span {
+                start: start_token.span.start,
+                end: end_token.span.end,
+            },
+        })
+    }
+
     fn parse_return(&mut self) -> Option<Statement<'a>> {
         // return
         let start_token = self.lexer.next().unwrap();
@@ -190,7 +255,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_var(&mut self) -> Option<Statement<'a>> {
+    fn parse_assign(&mut self, mutable: bool) -> Option<Statement<'a>> {
         // var
         let start_token = self.lexer.next().unwrap();
 
@@ -242,7 +307,7 @@ impl<'a> Parser<'a> {
         let end_token = self.lexer.next().unwrap();
 
         Some(Statement::Assign(
-            true,
+            mutable,
             ident.to_string(),
             type_annotation,
             expr,
@@ -376,6 +441,42 @@ impl<'a> Parser<'a> {
         identifiers
     }
 
+    fn parse_type_list(&mut self, opening_delimiter: TokenKind) -> Vec<AzulaType<'a>> {
+        let closing_delimiter = opening_delimiter.get_closing_delimiter().unwrap();
+
+        if let Some(peek) = self.lexer.peek() {
+            if peek.kind == closing_delimiter {
+                return vec![];
+            }
+        } else {
+            self.errors.push(AzulaError::new(
+                ErrorType::UnexpectedEOF,
+                self.source.len() - 2,
+                self.source.len() - 1,
+            ));
+            return vec![];
+        }
+
+        self.lexer.next();
+
+        let mut types = vec![];
+
+        types.push(self.parse_type());
+
+        let mut peek = self.lexer.peek().unwrap().kind.clone();
+        while peek == TokenKind::Comma {
+            self.lexer.next();
+            types.push(self.parse_type());
+            peek = self.lexer.peek().unwrap().kind.clone();
+        }
+
+        self.expect_peek(closing_delimiter);
+
+        self.lexer.next();
+
+        types
+    }
+
     fn expect_peek(&mut self, token_kind: TokenKind) -> bool {
         if let Some(tok) = self.lexer.peek() {
             return match tok.kind {
@@ -416,14 +517,45 @@ impl<'a> Parser<'a> {
         };
 
         let mut left = match tok.kind {
-            TokenKind::Integer(i) => Some(ExpressionNode {
-                expression: Expression::Integer(i),
-                typed: AzulaType::Int,
-                span: Span {
-                    start: tok.span.start,
-                    end: tok.span.end,
-                },
-            }),
+            TokenKind::Integer(i) => {
+                if let Some(peek) = self.lexer.peek() {
+                    if peek.kind == TokenKind::Dot {
+                        self.lexer.next();
+                        let second_number = self.parse_expression(CALL).unwrap();
+                        match second_number.expression {
+                            Expression::Integer(y) => Some(ExpressionNode {
+                                expression: Expression::Float(
+                                    format!("{}.{}", i, y).parse().unwrap(),
+                                ),
+                                typed: AzulaType::Float,
+                                span: Span {
+                                    start: tok.span.start,
+                                    end: second_number.span.end,
+                                },
+                            }),
+                            _ => panic!(),
+                        }
+                    } else {
+                        Some(ExpressionNode {
+                            expression: Expression::Integer(i),
+                            typed: AzulaType::Int,
+                            span: Span {
+                                start: tok.span.start,
+                                end: tok.span.end,
+                            },
+                        })
+                    }
+                } else {
+                    Some(ExpressionNode {
+                        expression: Expression::Integer(i),
+                        typed: AzulaType::Int,
+                        span: Span {
+                            start: tok.span.start,
+                            end: tok.span.end,
+                        },
+                    })
+                }
+            }
             TokenKind::True => Some(ExpressionNode {
                 expression: Expression::Boolean(true),
                 typed: AzulaType::Bool,
@@ -484,6 +616,18 @@ impl<'a> Parser<'a> {
                 Some(ExpressionNode {
                     expression: Expression::Not(Rc::new(expr.clone())),
                     typed: AzulaType::Bool,
+                    span: Span {
+                        start: tok.span.start,
+                        end: expr.span.end,
+                    },
+                })
+            }
+            TokenKind::Ampersand => {
+                let expr = self.parse_expression(PREFIX).unwrap();
+
+                Some(ExpressionNode {
+                    expression: Expression::Pointer(Rc::new(expr.clone())),
+                    typed: AzulaType::Infer,
                     span: Span {
                         start: tok.span.start,
                         end: expr.span.end,
@@ -573,6 +717,7 @@ impl<'a> Parser<'a> {
             | TokenKind::Asterisk
             | TokenKind::Slash
             | TokenKind::Modulo
+            | TokenKind::Power
             | TokenKind::Or
             | TokenKind::And
             | TokenKind::Equal
@@ -681,6 +826,7 @@ fn operator_from_token(tok: TokenKind) -> Option<Operator> {
         TokenKind::Asterisk => Some(Operator::Mul),
         TokenKind::Slash => Some(Operator::Div),
         TokenKind::Modulo => Some(Operator::Mod),
+        TokenKind::Power => Some(Operator::Power),
         TokenKind::Or => Some(Operator::Or),
         TokenKind::And => Some(Operator::And),
         TokenKind::Equal => Some(Operator::Eq),
@@ -835,12 +981,43 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_extern_function() {
+        let input = "extern varargs func test(int): bool;";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let func = parser.parse_statement().unwrap();
+        println!("{:?}", func);
+        assert!(matches!(func, Statement::ExternFunction { .. }));
+        if let Statement::ExternFunction {
+            name,
+            varargs,
+            args,
+            returns,
+            ..
+        } = func
+        {
+            assert_eq!(name, "test");
+            assert_eq!(varargs, true);
+            assert_eq!(args, vec![AzulaType::Int]);
+            assert_eq!(returns, AzulaType::Bool);
+        }
+    }
+
+    #[test]
     fn test_parse_assign() {
         let input = "var test = 5;";
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let func = parser.parse_var().unwrap();
+        let func = parser.parse_statement().unwrap();
+        assert!(matches!(func, Statement::Assign(..)));
+
+        let input = "const test = 5;";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let func = parser.parse_statement().unwrap();
         assert!(matches!(func, Statement::Assign(..)));
 
         // Type annotation
@@ -848,7 +1025,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let assign = parser.parse_var().unwrap();
+        let assign = parser.parse_assign(true).unwrap();
         assert!(matches!(func, Statement::Assign(..)));
         if let Statement::Assign(mutable, name, type_annotation, value, ..) = assign {
             assert_eq!(mutable, true);
@@ -1300,6 +1477,66 @@ mod tests {
                 typed: AzulaType::Bool,
                 span: Span { start: 1, end: 5 }
             }))
+        );
+    }
+
+    #[test]
+    fn test_pointer() {
+        let input = "&my_var";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expression = parser.parse_expression(LOWEST).unwrap();
+        assert!(parser.errors.is_empty());
+        assert_eq!(
+            expression.expression,
+            Expression::Pointer(Rc::new(ExpressionNode {
+                expression: Expression::Identifier("my_var".to_string()),
+                typed: AzulaType::Infer,
+                span: Span { start: 1, end: 7 }
+            }))
+        );
+    }
+
+    #[test]
+    fn test_float() {
+        let input = "5.5";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expression = parser.parse_expression(LOWEST).unwrap();
+        assert!(parser.errors.is_empty());
+        assert_eq!(expression.expression, Expression::Float(5.5));
+
+        let input = "3.14523";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expression = parser.parse_expression(LOWEST).unwrap();
+        assert!(parser.errors.is_empty());
+        assert_eq!(expression.expression, Expression::Float(3.14523));
+
+        let input = "5.2 * 15.2";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expression = parser.parse_expression(LOWEST).unwrap();
+        assert!(parser.errors.is_empty());
+        assert_eq!(
+            expression.expression,
+            Expression::Infix(
+                Rc::new(ExpressionNode {
+                    expression: Expression::Float(5.2),
+                    typed: AzulaType::Float,
+                    span: Span { start: 0, end: 3 }
+                }),
+                Operator::Mul,
+                Rc::new(ExpressionNode {
+                    expression: Expression::Float(15.2),
+                    typed: AzulaType::Float,
+                    span: Span { start: 6, end: 10 }
+                })
+            )
         );
     }
 }

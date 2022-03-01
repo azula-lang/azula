@@ -49,6 +49,8 @@ pub enum TokenKind<'a> {
     True,     // true
     False,    // false
     If,       // If
+    Extern,   // extern
+    VarArgs,  // varargs
 
     Comment,
     UnknownToken,

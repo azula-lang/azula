@@ -23,12 +23,20 @@ pub enum Statement<'a> {
     ),
     ExpressionStatement(ExpressionNode<'a>, Span),
     If(ExpressionNode<'a>, Body<'a>, Span),
+    ExternFunction {
+        name: &'a str,
+        varargs: bool,
+        args: Vec<AzulaType<'a>>,
+        returns: AzulaType<'a>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression<'a> {
     Infix(Rc<ExpressionNode<'a>>, Operator, Rc<ExpressionNode<'a>>),
     Integer(i64),
+    Float(f64),
     Identifier(String),
     Boolean(bool),
     String(String),
@@ -37,6 +45,7 @@ pub enum Expression<'a> {
         args: Vec<ExpressionNode<'a>>,
     },
     Not(Rc<ExpressionNode<'a>>),
+    Pointer(Rc<ExpressionNode<'a>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,6 +62,7 @@ pub enum Operator {
     Mul,
     Div,
     Mod,
+    Power,
     Or,
     And,
     Eq,

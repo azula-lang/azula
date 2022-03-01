@@ -9,11 +9,11 @@ use azula_ir::prelude::{Instruction, Module, Value};
 use azula_type::prelude::AzulaType;
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::{Linkage, Module as LLVMModule};
-use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType};
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetData, TargetMachine};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntMathType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue};
 use inkwell::{builder::Builder, context::Context};
-use inkwell::{AddressSpace, IntPredicate};
+use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
 
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -21,6 +21,7 @@ pub struct LLVMCodegen<'ctx> {
     builder: Builder<'ctx>,
 
     strings: HashMap<usize, BasicValueEnum<'ctx>>,
+    string_size: HashMap<usize, usize>,
 }
 
 struct FunctionLocals<'a> {
@@ -39,17 +40,56 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
             module: llvm_module,
             builder: context.create_builder(),
             strings: HashMap::new(),
+            string_size: HashMap::new(),
         };
 
+        for (name, extern_func) in module.extern_functions {
+            let args: Vec<_> = extern_func
+                .arguments
+                .iter()
+                .map(|arg| azula_type_to_llvm_basic_type(&context, arg.clone()).into())
+                .collect();
+            codegen.module.add_function(
+                name,
+                azula_type_to_function_llvm_type_with_varargs(
+                    &context,
+                    extern_func.returns,
+                    &args,
+                    extern_func.varargs,
+                ),
+                Some(Linkage::External),
+            );
+        }
+
         codegen.module.add_function(
-            "printf",
+            "pow",
+            codegen.context.f64_type().fn_type(
+                &[
+                    codegen.context.f64_type().as_basic_type_enum().into(),
+                    codegen.context.f64_type().as_basic_type_enum().into(),
+                ],
+                true,
+            ),
+            Some(Linkage::External),
+        );
+
+        codegen.module.add_function(
+            "sprintf",
             codegen.context.i32_type().fn_type(
-                &[codegen
-                    .context
-                    .i8_type()
-                    .ptr_type(AddressSpace::Generic)
-                    .as_basic_type_enum()
-                    .into()],
+                &[
+                    codegen
+                        .context
+                        .i8_type()
+                        .ptr_type(AddressSpace::Generic)
+                        .as_basic_type_enum()
+                        .into(),
+                    codegen
+                        .context
+                        .i8_type()
+                        .ptr_type(AddressSpace::Generic)
+                        .as_basic_type_enum()
+                        .into(),
+                ],
                 true,
             ),
             Some(Linkage::External),
@@ -98,6 +138,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                             .as_basic_value_enum();
 
                         codegen.strings.insert(i, ptr);
+                        codegen.string_size.insert(i, str.len());
                     }
                     i += 1;
                 }
@@ -143,7 +184,34 @@ impl<'a> LLVMCodegen<'a> {
                 locals.store(dest, func.get_params()[arg]);
             }
             Instruction::Store(name, val, typ) => {
-                let value = locals.load(value_to_local(val));
+                let value = match val {
+                    Value::Local(val) => locals.load(val),
+                    Value::LiteralInteger(_) => todo!(),
+                    Value::LiteralBoolean(_) => todo!(),
+                    Value::Global(y) => {
+                        let alloca = self.builder.build_alloca(
+                            azula_type_to_llvm_basic_type(self.context, typ),
+                            "alloca",
+                        );
+                        alloca.as_instruction().unwrap().set_alignment(1).unwrap();
+                        self.builder
+                            .build_memcpy(
+                                alloca,
+                                1,
+                                self.strings.get(&y).unwrap().into_pointer_value(),
+                                1,
+                                self.context
+                                    .ptr_sized_int_type(
+                                        &self.create_machine().unwrap().get_target_data(),
+                                        Some(AddressSpace::Generic),
+                                    )
+                                    .const_int(1, false),
+                            )
+                            .unwrap();
+                        locals.variables.insert(name, alloca.as_basic_value_enum());
+                        return;
+                    }
+                };
                 let alloca = self
                     .builder
                     .build_alloca(azula_type_to_llvm_basic_type(self.context, typ), "alloca");
@@ -157,6 +225,15 @@ impl<'a> LLVMCodegen<'a> {
                     self.context
                         .i64_type()
                         .const_int(val as u64, false)
+                        .as_basic_value_enum(),
+                );
+            }
+            Instruction::ConstFloat(val, dest) => {
+                locals.registers.insert(
+                    dest,
+                    self.context
+                        .f64_type()
+                        .const_float(val)
                         .as_basic_value_enum(),
                 );
             }
@@ -183,6 +260,7 @@ impl<'a> LLVMCodegen<'a> {
             Instruction::Mul(..) => self.codegen_mul(instruction, locals),
             Instruction::Div(..) => self.codegen_div(instruction, locals),
             Instruction::Mod(..) => self.codegen_mod(instruction, locals),
+            Instruction::Pow(..) => self.codegen_pow(instruction, locals),
             Instruction::Return(val) => match val {
                 None => {
                     self.builder.build_return(None);
@@ -256,20 +334,58 @@ impl<'a> LLVMCodegen<'a> {
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Eq(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value = self
-                    .builder
-                    .build_int_compare(IntPredicate::EQ, local1, local2, "eq");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OEQ,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "add",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::EQ,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "add",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Neq(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value = self
-                    .builder
-                    .build_int_compare(IntPredicate::NE, local1, local2, "eq");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::ONE,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "sub",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::NE,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "sub",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
@@ -281,38 +397,114 @@ impl<'a> LLVMCodegen<'a> {
                 self.builder.position_at_end(jump_block);
             }
             Instruction::Gt(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value = self
-                    .builder
-                    .build_int_compare(IntPredicate::SGT, local1, local2, "gt");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OGT,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "gt",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::SGT,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "gt",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Gte(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value =
-                    self.builder
-                        .build_int_compare(IntPredicate::SGE, local1, local2, "gte");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OGE,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "gte",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::SGE,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "gte",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Lt(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value = self
-                    .builder
-                    .build_int_compare(IntPredicate::SLT, local1, local2, "lt");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OLT,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "lt",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::SLT,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "lt",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Lte(val1, val2, dest) => {
-                let local1 = locals.load(value_to_local(val1)).into_int_value();
-                let local2 = locals.load(value_to_local(val2)).into_int_value();
-                let value = self
-                    .builder
-                    .build_int_compare(IntPredicate::SLE, local1, local2, "lt");
+                let local1 = locals.load(value_to_local(val1));
+                let local2 = locals.load(value_to_local(val2));
+
+                let value = match local1.get_type() {
+                    BasicTypeEnum::FloatType(_) => self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OLE,
+                            local1.into_float_value(),
+                            local2.into_float_value(),
+                            "add",
+                        )
+                        .as_basic_value_enum(),
+                    BasicTypeEnum::IntType(_) => self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::SLE,
+                            local1.into_int_value(),
+                            local2.into_int_value(),
+                            "add",
+                        )
+                        .as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
 
                 locals.store(dest, value.as_basic_value_enum());
             }
@@ -322,26 +514,51 @@ impl<'a> LLVMCodegen<'a> {
 
                 locals.store(dest, value.as_basic_value_enum());
             }
+            Instruction::Pointer(val, dest) => {
+                let alloca = locals.variables.get(&val).unwrap().clone();
+
+                locals.store(dest, alloca.as_basic_value_enum());
+            }
         };
     }
 
     fn codegen_add(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
         if let Instruction::Add(val1, val2, dest) = instruction {
-            let local1 = locals.load(value_to_local(val1)).into_int_value();
-            let local2 = locals.load(value_to_local(val2)).into_int_value();
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
 
-            let value = self.builder.build_int_add(local1, local2, "add");
+            let value = match local1.get_type() {
+                BasicTypeEnum::FloatType(_) => self
+                    .builder
+                    .build_float_add(local1.into_float_value(), local2.into_float_value(), "add")
+                    .as_basic_value_enum(),
+                BasicTypeEnum::IntType(_) => self
+                    .builder
+                    .build_int_add(local1.into_int_value(), local2.into_int_value(), "add")
+                    .as_basic_value_enum(),
+                _ => unreachable!(),
+            };
 
-            locals.store(dest, value.as_basic_value_enum());
+            locals.store(dest, value);
         }
     }
 
     fn codegen_sub(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
         if let Instruction::Sub(val1, val2, dest) = instruction {
-            let local1 = locals.load(value_to_local(val1)).into_int_value();
-            let local2 = locals.load(value_to_local(val2)).into_int_value();
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
 
-            let value = self.builder.build_int_sub(local1, local2, "sub");
+            let value = match local1.get_type() {
+                BasicTypeEnum::FloatType(_) => self
+                    .builder
+                    .build_float_sub(local1.into_float_value(), local2.into_float_value(), "add")
+                    .as_basic_value_enum(),
+                BasicTypeEnum::IntType(_) => self
+                    .builder
+                    .build_int_sub(local1.into_int_value(), local2.into_int_value(), "add")
+                    .as_basic_value_enum(),
+                _ => unreachable!(),
+            };
 
             locals.store(dest, value.as_basic_value_enum());
         }
@@ -349,10 +566,20 @@ impl<'a> LLVMCodegen<'a> {
 
     fn codegen_mul(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
         if let Instruction::Mul(val1, val2, dest) = instruction {
-            let local1 = locals.load(value_to_local(val1)).into_int_value();
-            let local2 = locals.load(value_to_local(val2)).into_int_value();
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
 
-            let value = self.builder.build_int_mul(local1, local2, "mul");
+            let value = match local1.get_type() {
+                BasicTypeEnum::FloatType(_) => self
+                    .builder
+                    .build_float_mul(local1.into_float_value(), local2.into_float_value(), "add")
+                    .as_basic_value_enum(),
+                BasicTypeEnum::IntType(_) => self
+                    .builder
+                    .build_int_mul(local1.into_int_value(), local2.into_int_value(), "add")
+                    .as_basic_value_enum(),
+                _ => unreachable!(),
+            };
 
             locals.store(dest, value.as_basic_value_enum());
         }
@@ -360,10 +587,20 @@ impl<'a> LLVMCodegen<'a> {
 
     fn codegen_div(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
         if let Instruction::Div(val1, val2, dest) = instruction {
-            let local1 = locals.load(value_to_local(val1)).into_int_value();
-            let local2 = locals.load(value_to_local(val2)).into_int_value();
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
 
-            let value = self.builder.build_int_signed_div(local1, local2, "div");
+            let value = match local1.get_type() {
+                BasicTypeEnum::FloatType(_) => self
+                    .builder
+                    .build_float_div(local1.into_float_value(), local2.into_float_value(), "div")
+                    .as_basic_value_enum(),
+                BasicTypeEnum::IntType(_) => self
+                    .builder
+                    .build_int_signed_div(local1.into_int_value(), local2.into_int_value(), "div")
+                    .as_basic_value_enum(),
+                _ => unreachable!(),
+            };
 
             locals.store(dest, value.as_basic_value_enum());
         }
@@ -371,16 +608,49 @@ impl<'a> LLVMCodegen<'a> {
 
     fn codegen_mod(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
         if let Instruction::Mod(val1, val2, dest) = instruction {
-            let local1 = locals.load(value_to_local(val1)).into_int_value();
-            let local2 = locals.load(value_to_local(val2)).into_int_value();
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
 
-            let value = self.builder.build_int_signed_rem(local1, local2, "mod");
+            let value = match local1.get_type() {
+                BasicTypeEnum::FloatType(_) => self
+                    .builder
+                    .build_float_rem(local1.into_float_value(), local2.into_float_value(), "mod")
+                    .as_basic_value_enum(),
+                BasicTypeEnum::IntType(_) => self
+                    .builder
+                    .build_int_signed_rem(local1.into_int_value(), local2.into_int_value(), "mod")
+                    .as_basic_value_enum(),
+                _ => unreachable!(),
+            };
 
             locals.store(dest, value.as_basic_value_enum());
         }
     }
 
+    fn codegen_pow(&self, instruction: Instruction<'a>, locals: &mut FunctionLocals<'a>) {
+        if let Instruction::Pow(val1, val2, dest) = instruction {
+            let local1 = locals.load(value_to_local(val1));
+            let local2 = locals.load(value_to_local(val2));
+
+            let result = self.builder.build_call(
+                self.module.get_function("pow").unwrap(),
+                &[local1.into(), local2.into()],
+                "power",
+            );
+
+            locals.store(dest, result.try_as_basic_value().unwrap_left());
+        }
+    }
+
     fn build_object_file(&self, dest: &'a str) {
+        let target_machine = self.create_machine().unwrap();
+
+        target_machine
+            .write_to_file(&self.module, FileType::Object, Path::new(dest))
+            .unwrap();
+    }
+
+    fn create_machine(&self) -> Option<TargetMachine> {
         let triple = TargetMachine::get_default_triple();
         let cpu = TargetMachine::get_host_cpu_name().to_string();
         let features = TargetMachine::get_host_cpu_features().to_string();
@@ -388,20 +658,14 @@ impl<'a> LLVMCodegen<'a> {
         self.module.set_triple(&triple);
         Target::initialize_native(&InitializationConfig::default()).unwrap();
         let target = Target::from_triple(&triple).unwrap();
-        let target_machine = target
-            .create_target_machine(
-                &triple,
-                &cpu,
-                &features,
-                inkwell::OptimizationLevel::Default,
-                inkwell::targets::RelocMode::Default,
-                inkwell::targets::CodeModel::Default,
-            )
-            .unwrap();
-
-        target_machine
-            .write_to_file(&self.module, FileType::Object, Path::new(dest))
-            .unwrap();
+        target.create_target_machine(
+            &triple,
+            &cpu,
+            &features,
+            inkwell::OptimizationLevel::Default,
+            inkwell::targets::RelocMode::Default,
+            inkwell::targets::CodeModel::Default,
+        )
     }
 }
 
@@ -430,6 +694,7 @@ fn azula_type_to_llvm_basic_type<'ctx>(
     match t {
         AzulaType::Int => context.i64_type().as_basic_type_enum(),
         AzulaType::Str => context.i8_type().as_basic_type_enum(),
+        AzulaType::Float => context.f64_type().as_basic_type_enum(),
         AzulaType::Bool => context.bool_type().as_basic_type_enum(),
         AzulaType::Void => todo!(),
         AzulaType::Pointer(nested) => {
@@ -451,12 +716,36 @@ fn azula_type_to_function_llvm_type<'ctx>(
     match t {
         AzulaType::Int => context.i64_type().fn_type(args, false),
         AzulaType::Str => todo!(),
+        AzulaType::Float => context.f64_type().fn_type(args, false),
         AzulaType::Bool => context.bool_type().fn_type(args, false),
         AzulaType::Void => context.void_type().fn_type(args, false),
         AzulaType::Pointer(nested) => {
             let typ = azula_type_to_llvm_basic_type(context, nested.deref().clone());
 
             typ.ptr_type(AddressSpace::Generic).fn_type(args, false)
+        }
+        AzulaType::Infer => todo!(),
+        AzulaType::Named(_) => todo!(),
+        AzulaType::UnknownType(_) => todo!(),
+    }
+}
+
+fn azula_type_to_function_llvm_type_with_varargs<'ctx>(
+    context: &'ctx Context,
+    t: AzulaType,
+    args: &[BasicMetadataTypeEnum<'ctx>],
+    varargs: bool,
+) -> FunctionType<'ctx> {
+    match t {
+        AzulaType::Int => context.i64_type().fn_type(args, varargs),
+        AzulaType::Str => todo!(),
+        AzulaType::Float => context.f64_type().fn_type(args, varargs),
+        AzulaType::Bool => context.bool_type().fn_type(args, varargs),
+        AzulaType::Void => context.void_type().fn_type(args, varargs),
+        AzulaType::Pointer(nested) => {
+            let typ = azula_type_to_llvm_basic_type(context, nested.deref().clone());
+
+            typ.ptr_type(AddressSpace::Generic).fn_type(args, varargs)
         }
         AzulaType::Infer => todo!(),
         AzulaType::Named(_) => todo!(),

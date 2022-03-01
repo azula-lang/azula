@@ -22,6 +22,20 @@ impl<'a> Codegen<'a> {
             for stmt in stmts.clone() {
                 match stmt {
                     Statement::Function { .. } => self.codegen_function(stmt.clone()),
+                    Statement::ExternFunction {
+                        name,
+                        varargs,
+                        args,
+                        returns,
+                        ..
+                    } => self.module.add_extern_function(
+                        name,
+                        ExternFunction {
+                            varargs,
+                            arguments: args,
+                            returns: returns,
+                        },
+                    ),
                     _ => unreachable!(),
                 }
             }
@@ -148,6 +162,7 @@ impl<'a> Codegen<'a> {
         match expr.expression {
             Expression::Infix(..) => self.codegen_infix(expr, func),
             Expression::Integer(val) => func.const_int(val),
+            Expression::Float(val) => func.const_float(val),
             Expression::Identifier(name) => {
                 if let Some((index, _)) = func
                     .arguments
@@ -187,6 +202,10 @@ impl<'a> Codegen<'a> {
 
                 func.not(val)
             }
+            Expression::Pointer(expr) => match &expr.expression {
+                Expression::Identifier(ident) => func.ptr(ident.clone()),
+                _ => unreachable!(),
+            },
         }
     }
 
@@ -222,6 +241,12 @@ impl<'a> Codegen<'a> {
                     let val2 = self.codegen_expr(val2.as_ref().clone(), func);
 
                     func.modulus(val1, val2)
+                }
+                Operator::Power => {
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+
+                    func.pow(val1, val2)
                 }
                 Operator::Or => {
                     let val1 = self.codegen_expr(val1.as_ref().clone(), func);
@@ -265,7 +290,12 @@ impl<'a> Codegen<'a> {
 
                     func.gt(val1, val2)
                 }
-                Operator::Gte => todo!(),
+                Operator::Gte => {
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+
+                    func.gte(val1, val2)
+                }
             }
         } else {
             unreachable!()

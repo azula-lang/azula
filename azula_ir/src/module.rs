@@ -8,6 +8,7 @@ use crate::instruction::{Instruction, Value};
 pub struct Module<'a> {
     pub name: &'a str,
     pub functions: HashMap<&'a str, Function<'a>>,
+    pub extern_functions: HashMap<&'a str, ExternFunction<'a>>,
     pub strings: Vec<String>,
 }
 
@@ -16,12 +17,17 @@ impl<'a> Module<'a> {
         Module {
             name,
             functions: HashMap::new(),
+            extern_functions: HashMap::new(),
             strings: vec![],
         }
     }
 
     pub fn add_function(&mut self, name: &'a str, function: Function<'a>) {
         self.functions.insert(name, function);
+    }
+
+    pub fn add_extern_function(&mut self, name: &'a str, function: ExternFunction<'a>) {
+        self.extern_functions.insert(name, function);
     }
 
     pub fn add_string(&mut self, val: String) -> Value {
@@ -77,6 +83,12 @@ pub struct Function<'a> {
     pub current_block: String,
 }
 
+pub struct ExternFunction<'a> {
+    pub varargs: bool,
+    pub arguments: Vec<AzulaType<'a>>,
+    pub returns: AzulaType<'a>,
+}
+
 impl<'a> Function<'a> {
     pub fn new() -> Self {
         let mut blocks = vec![];
@@ -119,6 +131,14 @@ impl<'a> Function<'a> {
 
     pub fn const_int(&mut self, val: i64) -> Value {
         self.add_instruction(Instruction::ConstInt(val, self.tmp_var_index));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn const_float(&mut self, val: f64) -> Value {
+        self.add_instruction(Instruction::ConstFloat(val, self.tmp_var_index));
 
         self.tmp_var_index += 1;
 
@@ -175,6 +195,14 @@ impl<'a> Function<'a> {
 
     pub fn modulus(&mut self, val1: Value, val2: Value) -> Value {
         self.add_instruction(Instruction::Mod(val1, val2, self.tmp_var_index));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn pow(&mut self, val1: Value, val2: Value) -> Value {
+        self.add_instruction(Instruction::Pow(val1, val2, self.tmp_var_index));
 
         self.tmp_var_index += 1;
 
@@ -247,6 +275,14 @@ impl<'a> Function<'a> {
 
     pub fn not(&mut self, val: Value) -> Value {
         self.add_instruction(Instruction::Not(val, self.tmp_var_index));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn ptr(&mut self, val: String) -> Value {
+        self.add_instruction(Instruction::Pointer(val, self.tmp_var_index));
 
         self.tmp_var_index += 1;
 
