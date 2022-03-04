@@ -12,6 +12,7 @@
 .build/
 *.ll
 *.azl
+*.c
 
 !*/*.azl
 .DS_STORE
