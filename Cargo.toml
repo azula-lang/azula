@@ -1,0 +1,20 @@
+[package]
+name = "azula"
+version = "0.2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.release]
+lto = true
+
+[dependencies]
+azula_parser = { path = "parser" }
+azula_error = { path = "errors" }
+azula_ast = { path = "ast" }
+azula_typecheck = { path = "typecheck" }
+azula_ir = { path = "azula_ir" }
+azula_codegen = { path = "codegen" }
+azula_type = { path = "azula_type" }
+azula_codegen_llvm = { path = "codegen_llvm" }
+azula_cli = { path = "azula_cli" }

@@ -1,0 +1,17 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+/**/target
+*.lock
+.build/
+*.ll
+*.azl
+
+!*/*.azl
+.DS_STORE

@@ -1,0 +1,12 @@
+func factorial(n: int): int {
+    if n == 0 {
+        return 1;
+    }
+
+    return n * factorial(n - 1);
+}
+
+func main {
+    var factorial: int = factorial(10);
+    printf("%d\n", factorial);
+}

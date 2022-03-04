@@ -1,0 +1,12 @@
+[package]
+name = "azula_codegen_llvm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+azula_codegen = { path = "../codegen" }
+azula_ir = { path = "../azula_ir" }
+azula_type = { path = "../azula_type" }
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm13-0"] }
