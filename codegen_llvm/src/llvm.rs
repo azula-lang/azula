@@ -145,8 +145,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
         codegen.build_object_file(object_file.clone());
 
         if let Some(target) = codegen.target {
-            Command::new("zig")
-                .arg("cc")
+            Command::new("cc")
                 .arg(format!("-o{}{}", destination, name))
                 .arg(object_file)
                 .arg("-target")
@@ -156,8 +155,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                 .wait()
                 .unwrap();
         } else {
-            Command::new("zig")
-                .arg("cc")
+            Command::new("cc")
                 .arg(format!("-o{}{}", destination, name))
                 .arg(object_file)
                 .spawn()
