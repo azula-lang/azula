@@ -19,6 +19,7 @@ pub enum ErrorType {
     NonBoolCondition(String),
     FunctionNotFound(String),
     MismatchedAssignTypes(String, String),
+    NonGlobalConstant,
 }
 
 impl<'a> ErrorType {
@@ -57,6 +58,9 @@ impl<'a> ErrorType {
                     "Mismatched types in assign, expected {}, got {}",
                     wanted, got
                 )
+            }
+            ErrorType::NonGlobalConstant => {
+                "Only constant assigns are allowed at top-level".to_string()
             }
         }
     }

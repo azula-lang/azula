@@ -64,6 +64,11 @@ impl<'a> Parser<'a> {
                     Some(node) => node,
                     None => return None,
                 };
+
+                if !self.expect_peek(TokenKind::SemiColon) {
+                    return None;
+                }
+
                 Some(Statement::ExpressionStatement(expr.clone(), expr.span))
             }
         }

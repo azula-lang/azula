@@ -8,6 +8,7 @@ pub struct Typechecker<'a> {
     ast: Statement<'a>,
 
     functions: HashMap<&'a str, FunctionDefinition<'a>>,
+    globals: HashMap<String, VariableDefinition<'a>>,
 
     pub errors: Vec<AzulaError>,
 }
@@ -46,6 +47,7 @@ impl<'a> Typechecker<'a> {
         Typechecker {
             ast: root,
             functions: HashMap::new(),
+            globals: HashMap::new(),
             errors: vec![],
         }
     }
@@ -126,6 +128,7 @@ impl<'a> Typechecker<'a> {
         match stmt {
             Statement::Function { .. } => self.typecheck_function(stmt),
             Statement::ExternFunction { .. } => Ok(stmt),
+            Statement::Assign(..) => self.typecheck_global_assign(stmt),
             _ => unreachable!(),
         }
     }
@@ -200,6 +203,74 @@ impl<'a> Typechecker<'a> {
         }
 
         unreachable!()
+    }
+
+    fn typecheck_global_assign(&mut self, expr: Statement<'a>) -> Result<Statement<'a>, String> {
+        if let Statement::Assign(mutable, name, type_annotation, value, span) = expr {
+            if mutable {
+                self.errors.push(AzulaError::new(
+                    ErrorType::NonGlobalConstant,
+                    span.start,
+                    span.end,
+                ));
+                return Err("Non constant at top-level".to_string());
+            }
+
+            // let (expr, typ) = match self.typecheck_expression(value, &Environment::new()) {
+            //     Ok((expr, value)) => (expr, value),
+            //     Err(e) => return Err(e),
+            // };
+
+            let typ = match value.expression {
+                Expression::Integer(_) => AzulaType::Int,
+                Expression::Float(_) => AzulaType::Float,
+                Expression::Boolean(_) => AzulaType::Bool,
+                Expression::String(_) => AzulaType::Pointer(Rc::new(AzulaType::Str)),
+                _ => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::NonGlobalConstant,
+                        span.start,
+                        span.end,
+                    ));
+                    return Err("Non constant at top-level".to_string());
+                }
+            };
+
+            if type_annotation.is_some() {
+                let type_annotation = type_annotation.clone().unwrap();
+
+                if type_annotation != typ {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::MismatchedAssignTypes(
+                            format!("{:?}", type_annotation),
+                            format!("{:?}", typ),
+                        ),
+                        span.start,
+                        value.span.end,
+                    ));
+                    return Err("mismatched types in assign".to_string());
+                }
+            }
+
+            self.globals.insert(
+                name.clone(),
+                VariableDefinition {
+                    name: name.clone(),
+                    mutable,
+                    typ,
+                },
+            );
+
+            Ok(Statement::Assign(
+                mutable,
+                name,
+                type_annotation,
+                value,
+                span,
+            ))
+        } else {
+            unreachable!()
+        }
     }
 
     fn typecheck_assign(
@@ -326,7 +397,14 @@ impl<'a> Typechecker<'a> {
                 Ok((expr.clone(), AzulaType::Pointer(Rc::new(AzulaType::Str))))
             }
             Expression::Identifier(ref name) => {
+                if name == "nil" {
+                    return Ok((expr.clone(), AzulaType::Void));
+                }
                 if let Some(variable) = env.variable_definitions.get(name) {
+                    expr.typed = variable.typ.clone().into();
+
+                    Ok((expr.clone(), variable.typ.clone()))
+                } else if let Some(variable) = self.globals.get(name) {
                     expr.typed = variable.typ.clone().into();
 
                     Ok((expr.clone(), variable.typ.clone()))
@@ -447,8 +525,8 @@ impl<'a> Typechecker<'a> {
                 Operator::Power => vec![AzulaType::Int, AzulaType::Float],
                 Operator::Or => vec![AzulaType::Bool],
                 Operator::And => vec![AzulaType::Bool],
-                Operator::Eq => vec![AzulaType::Int, AzulaType::Float],
-                Operator::Neq => vec![AzulaType::Int, AzulaType::Float],
+                Operator::Eq => vec![AzulaType::Int, AzulaType::Float, AzulaType::Bool],
+                Operator::Neq => vec![AzulaType::Int, AzulaType::Float, AzulaType::Bool],
                 Operator::Lt => vec![AzulaType::Int, AzulaType::Float],
                 Operator::Lte => vec![AzulaType::Int, AzulaType::Float],
                 Operator::Gt => vec![AzulaType::Int, AzulaType::Float],
@@ -458,7 +536,10 @@ impl<'a> Typechecker<'a> {
             let allowed = allowed.get(operator).unwrap();
             if !allowed.contains(&left_typ) {
                 self.errors.push(AzulaError::new(
-                    ErrorType::NonOperatorType(format!("{:?}", left_typ), "+".to_string()),
+                    ErrorType::NonOperatorType(
+                        format!("{:?}", left_typ),
+                        format!("{:?}", operator),
+                    ),
                     left.span.start,
                     left.span.end,
                 ));
@@ -467,7 +548,10 @@ impl<'a> Typechecker<'a> {
 
             if !allowed.contains(&right_typ) {
                 self.errors.push(AzulaError::new(
-                    ErrorType::NonOperatorType(format!("{:?}", right_typ), "+".to_string()),
+                    ErrorType::NonOperatorType(
+                        format!("{:?}", right_typ),
+                        format!("{:?}", operator),
+                    ),
                     right.span.start,
                     right.span.end,
                 ));

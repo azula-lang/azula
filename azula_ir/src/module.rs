@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, rc::Rc};
 
 use azula_type::prelude::AzulaType;
 
@@ -10,15 +10,26 @@ pub struct Module<'a> {
     pub functions: HashMap<&'a str, Function<'a>>,
     pub extern_functions: HashMap<&'a str, ExternFunction<'a>>,
     pub strings: Vec<String>,
+    pub global_values: HashMap<String, GlobalValue>,
 }
 
 impl<'a> Module<'a> {
     pub fn new(name: &'a str) -> Self {
+        let mut extern_functions = HashMap::new();
+        extern_functions.insert(
+            "printf",
+            ExternFunction {
+                varargs: true,
+                arguments: vec![AzulaType::Pointer(Rc::new(AzulaType::Str))],
+                returns: AzulaType::Void,
+            },
+        );
         Module {
             name,
             functions: HashMap::new(),
-            extern_functions: HashMap::new(),
+            extern_functions,
             strings: vec![],
+            global_values: HashMap::new(),
         }
     }
 
@@ -117,6 +128,14 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
+    pub fn load_global(&mut self, variable: String, typ: AzulaType<'a>) -> Value {
+        self.add_instruction(Instruction::LoadGlobal(variable, self.tmp_var_index, typ));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
     pub fn load_arg(&mut self, arg: usize, typ: AzulaType<'a>) -> Value {
         self.add_instruction(Instruction::LoadArg(arg, self.tmp_var_index, typ));
 
@@ -155,6 +174,14 @@ impl<'a> Function<'a> {
 
     pub fn const_false(&mut self) -> Value {
         self.add_instruction(Instruction::ConstFalse(self.tmp_var_index));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn const_null(&mut self) -> Value {
+        self.add_instruction(Instruction::ConstNull(self.tmp_var_index));
 
         self.tmp_var_index += 1;
 
@@ -327,4 +354,12 @@ impl<'a> Block<'a> {
             instructions: vec![],
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum GlobalValue {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    String(usize),
 }

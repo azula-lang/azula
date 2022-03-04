@@ -5,12 +5,14 @@ use azula_type::prelude::AzulaType;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction<'a> {
     Load(String, usize, AzulaType<'a>),
+    LoadGlobal(String, usize, AzulaType<'a>),
     Store(String, Value, AzulaType<'a>),
     LoadArg(usize, usize, AzulaType<'a>),
     ConstInt(i64, usize),
     ConstFloat(f64, usize),
     ConstTrue(usize),
     ConstFalse(usize),
+    ConstNull(usize),
     Add(Value, Value, usize),
     Sub(Value, Value, usize),
     Mul(Value, Value, usize),
@@ -37,6 +39,9 @@ impl<'a> Display for Instruction<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Instruction::Load(name, dest, typ) => write!(f, "%{}: load @{} {:?}", dest, name, typ),
+            Instruction::LoadGlobal(name, dest, typ) => {
+                write!(f, "%{}: load_global @{} {:?}", dest, name, typ)
+            }
             Instruction::Store(name, value, typ) => {
                 write!(f, "store @{} {} {:?}", name, value, typ)
             }
@@ -47,6 +52,7 @@ impl<'a> Display for Instruction<'a> {
             Instruction::ConstFloat(val, dest) => write!(f, "%{}: const_float {}", dest, val),
             Instruction::ConstTrue(dest) => write!(f, "%{}: const_true", dest),
             Instruction::ConstFalse(dest) => write!(f, "%{}: const_false", dest),
+            Instruction::ConstNull(dest) => write!(f, "%{}: const_null", dest),
             Instruction::Add(val1, val2, dest) => write!(f, "%{}: add {} {}", dest, val1, val2),
             Instruction::Sub(val1, val2, dest) => write!(f, "%{}: sub {} {}", dest, val1, val2),
             Instruction::Mul(val1, val2, dest) => write!(f, "%{}: mul {} {}", dest, val1, val2),

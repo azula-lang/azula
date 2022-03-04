@@ -36,6 +36,24 @@ impl<'a> Codegen<'a> {
                             returns: returns,
                         },
                     ),
+                    Statement::Assign(_, name, _, val, ..) => {
+                        let value = match val.expression {
+                            Expression::Integer(i) => GlobalValue::Int(i),
+                            Expression::Float(f) => GlobalValue::Float(f),
+                            Expression::Boolean(b) => GlobalValue::Bool(b),
+                            Expression::String(s) => {
+                                let ptr = match self.module.add_string(s) {
+                                    Value::Global(v) => v,
+                                    _ => unreachable!(),
+                                };
+
+                                GlobalValue::String(ptr)
+                            }
+                            _ => unreachable!(),
+                        };
+
+                        self.module.global_values.insert(name, value);
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -173,8 +191,17 @@ impl<'a> Codegen<'a> {
                     .next()
                 {
                     func.load_arg(index, expr.typed)
-                } else {
+                } else if func.variables.contains_key(&name) {
                     func.load(name, expr.typed)
+                } else if let Some(val) = self.module.global_values.get(&name) {
+                    if let GlobalValue::String(v) = val {
+                        return Value::Global(*v);
+                    }
+                    func.load_global(name, expr.typed)
+                } else if name == "nil" {
+                    func.const_null()
+                } else {
+                    unreachable!()
                 }
             }
             Expression::String(val) => self.module.add_string(val),

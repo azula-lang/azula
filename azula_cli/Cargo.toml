@@ -1,0 +1,17 @@
+[package]
+name = "azula_cli"
+version = "0.2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.1.5", features = ["derive"] }
+azula_parser = { path = "../parser" }
+azula_error = { path = "../errors" }
+azula_ast = { path = "../ast" }
+azula_typecheck = { path = "../typecheck" }
+azula_ir = { path = "../azula_ir" }
+azula_codegen = { path = "../codegen" }
+azula_type = { path = "../azula_type" }
+azula_codegen_llvm = { path = "../codegen_llvm" }

@@ -5,12 +5,12 @@ use std::path::Path;
 use std::process::Command;
 
 use azula_codegen::prelude::Backend;
-use azula_ir::prelude::{Instruction, Module, Value};
+use azula_ir::prelude::{GlobalValue, Instruction, Module, Value};
 use azula_type::prelude::AzulaType;
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::{Linkage, Module as LLVMModule};
-use inkwell::targets::{FileType, InitializationConfig, Target, TargetData, TargetMachine};
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntMathType};
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine, TargetTriple};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue};
 use inkwell::{builder::Builder, context::Context};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
@@ -22,6 +22,9 @@ pub struct LLVMCodegen<'ctx> {
 
     strings: HashMap<usize, BasicValueEnum<'ctx>>,
     string_size: HashMap<usize, usize>,
+    globals: HashMap<String, BasicValueEnum<'ctx>>,
+
+    target: Option<String>,
 }
 
 struct FunctionLocals<'a> {
@@ -32,18 +35,31 @@ struct FunctionLocals<'a> {
 }
 
 impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
-    fn codegen(module: Module<'ctx>) -> Result<(), Box<dyn Error>> {
+    fn codegen(
+        name: &'ctx str,
+        destination: &'ctx str,
+        emit: bool,
+        target: Option<&String>,
+        module: Module<'ctx>,
+    ) -> Result<(), Box<dyn Error>> {
         let context = Context::create();
         let llvm_module = context.create_module(module.name);
+        let target = if let Some(val) = target {
+            Some(val.clone())
+        } else {
+            None
+        };
         let mut codegen = LLVMCodegen {
             context: &context,
             module: llvm_module,
             builder: context.create_builder(),
             strings: HashMap::new(),
             string_size: HashMap::new(),
+            globals: HashMap::new(),
+            target,
         };
 
-        for (name, extern_func) in module.extern_functions {
+        for (name, extern_func) in &module.extern_functions {
             let args: Vec<_> = extern_func
                 .arguments
                 .iter()
@@ -53,7 +69,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                 name,
                 azula_type_to_function_llvm_type_with_varargs(
                     &context,
-                    extern_func.returns,
+                    extern_func.returns.clone(),
                     &args,
                     extern_func.varargs,
                 ),
@@ -68,37 +84,15 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                     codegen.context.f64_type().as_basic_type_enum().into(),
                     codegen.context.f64_type().as_basic_type_enum().into(),
                 ],
-                true,
+                false,
             ),
             Some(Linkage::External),
         );
-
-        codegen.module.add_function(
-            "sprintf",
-            codegen.context.i32_type().fn_type(
-                &[
-                    codegen
-                        .context
-                        .i8_type()
-                        .ptr_type(AddressSpace::Generic)
-                        .as_basic_type_enum()
-                        .into(),
-                    codegen
-                        .context
-                        .i8_type()
-                        .ptr_type(AddressSpace::Generic)
-                        .as_basic_type_enum()
-                        .into(),
-                ],
-                true,
-            ),
-            Some(Linkage::External),
-        );
-
         let mut i = 0;
 
         for (name, func) in &module.functions {
-            let mut linkage = Some(Linkage::Private);
+            // let mut linkage = Some(Linkage::Private);
+            let mut linkage = None;
             if *name == "main" {
                 linkage = None;
             }
@@ -131,15 +125,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                 };
                 codegen.builder.position_at_end(basic);
                 if i == 0 {
-                    for (i, str) in module.strings.clone().into_iter().enumerate() {
-                        let ptr = codegen
-                            .builder
-                            .build_global_string_ptr(str.as_str(), "string")
-                            .as_basic_value_enum();
-
-                        codegen.strings.insert(i, ptr);
-                        codegen.string_size.insert(i, str.len());
-                    }
+                    codegen.store_globals(&module);
                     i += 1;
                 }
                 for instruction in &block.instructions {
@@ -148,25 +134,111 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
             }
         }
 
-        codegen.module.print_to_file("test.ll").unwrap();
+        if emit {
+            codegen
+                .module
+                .print_to_file(format!(".build/{}.o", name))
+                .unwrap();
+        }
 
-        codegen.build_object_file(".build/out.o");
+        let object_file = format!(".build/{}.o", name);
+        codegen.build_object_file(object_file.clone());
 
-        Command::new("cc")
-            .arg("-otest")
-            .arg(".build/out.o")
-            .arg("-flto")
-            .arg("-march=native")
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
+        if let Some(target) = codegen.target {
+            Command::new("zig")
+                .arg("cc")
+                .arg(format!("-o{}{}", destination, name))
+                .arg(object_file)
+                .arg("-target")
+                .arg(target)
+                .spawn()
+                .unwrap()
+                .wait()
+                .unwrap();
+        } else {
+            Command::new("zig")
+                .arg("cc")
+                .arg(format!("-o{}{}", destination, name))
+                .arg(object_file)
+                .spawn()
+                .unwrap()
+                .wait()
+                .unwrap();
+        }
 
         Ok(())
     }
 }
 
 impl<'a> LLVMCodegen<'a> {
+    fn store_globals(&mut self, module: &Module<'a>) {
+        for (i, str) in module.strings.clone().into_iter().enumerate() {
+            let ptr = self
+                .builder
+                .build_global_string_ptr(str.as_str(), "string")
+                .as_basic_value_enum();
+
+            self.strings.insert(i, ptr);
+            self.string_size.insert(i, str.len());
+        }
+
+        for (name, val) in &module.global_values {
+            let ptr = match val {
+                GlobalValue::Int(i) => {
+                    let val = self.module.add_global(
+                        self.context.i64_type(),
+                        Some(AddressSpace::Global),
+                        &name,
+                    );
+
+                    val.set_initializer(
+                        &self
+                            .context
+                            .i64_type()
+                            .const_int((*i).try_into().unwrap(), false),
+                    );
+
+                    val.as_basic_value_enum()
+                }
+                GlobalValue::Float(f) => {
+                    let val = self.module.add_global(
+                        self.context.f64_type(),
+                        Some(AddressSpace::Global),
+                        &name,
+                    );
+
+                    val.set_initializer(
+                        &self
+                            .context
+                            .f64_type()
+                            .const_float((*f).try_into().unwrap()),
+                    );
+
+                    val.as_basic_value_enum()
+                }
+                GlobalValue::Bool(b) => {
+                    let val = self.module.add_global(
+                        self.context.f64_type(),
+                        Some(AddressSpace::Global),
+                        &name,
+                    );
+
+                    val.set_initializer(
+                        &self
+                            .context
+                            .bool_type()
+                            .const_int((*b).try_into().unwrap(), false),
+                    );
+
+                    val.as_basic_value_enum()
+                }
+                GlobalValue::String(s) => *self.strings.get(&s).unwrap(),
+            };
+
+            self.globals.insert(name.clone(), ptr);
+        }
+    }
+
     fn codegen_instruction(
         &self,
         instruction: Instruction<'a>,
@@ -176,6 +248,12 @@ impl<'a> LLVMCodegen<'a> {
         match instruction {
             Instruction::Load(name, dest, _) => {
                 let alloca = locals.variables.get(&name).unwrap();
+                let value = self.builder.build_load(alloca.into_pointer_value(), "load");
+
+                locals.store(dest, value);
+            }
+            Instruction::LoadGlobal(name, dest, _) => {
+                let alloca = self.globals.get(&name).unwrap();
                 let value = self.builder.build_load(alloca.into_pointer_value(), "load");
 
                 locals.store(dest, value);
@@ -193,21 +271,10 @@ impl<'a> LLVMCodegen<'a> {
                             azula_type_to_llvm_basic_type(self.context, typ),
                             "alloca",
                         );
-                        alloca.as_instruction().unwrap().set_alignment(1).unwrap();
-                        self.builder
-                            .build_memcpy(
-                                alloca,
-                                1,
-                                self.strings.get(&y).unwrap().into_pointer_value(),
-                                1,
-                                self.context
-                                    .ptr_sized_int_type(
-                                        &self.create_machine().unwrap().get_target_data(),
-                                        Some(AddressSpace::Generic),
-                                    )
-                                    .const_int(1, false),
-                            )
-                            .unwrap();
+                        self.builder.build_store(
+                            alloca,
+                            self.strings.get(&y).unwrap().as_basic_value_enum(),
+                        );
                         locals.variables.insert(name, alloca.as_basic_value_enum());
                         return;
                     }
@@ -252,6 +319,16 @@ impl<'a> LLVMCodegen<'a> {
                     self.context
                         .bool_type()
                         .const_int(0 as u64, false)
+                        .as_basic_value_enum(),
+                );
+            }
+            Instruction::ConstNull(dest) => {
+                locals.registers.insert(
+                    dest,
+                    self.context
+                        .i8_type()
+                        .ptr_type(AddressSpace::Generic)
+                        .const_zero()
                         .as_basic_value_enum(),
                 );
             }
@@ -642,15 +719,31 @@ impl<'a> LLVMCodegen<'a> {
         }
     }
 
-    fn build_object_file(&self, dest: &'a str) {
-        let target_machine = self.create_machine().unwrap();
+    fn build_object_file(&self, dest: String) {
+        let target_machine = self.create_machine(self.target.clone()).unwrap();
 
         target_machine
-            .write_to_file(&self.module, FileType::Object, Path::new(dest))
+            .write_to_file(&self.module, FileType::Object, Path::new(&dest))
             .unwrap();
     }
 
-    fn create_machine(&self) -> Option<TargetMachine> {
+    fn create_machine(&self, name: Option<String>) -> Option<TargetMachine> {
+        if let Some(target) = name {
+            let triple = TargetTriple::create(&target);
+
+            self.module.set_triple(&triple);
+            Target::initialize_all(&InitializationConfig::default());
+            let target = Target::from_triple(&triple).unwrap();
+            return target.create_target_machine(
+                &triple,
+                "",
+                "",
+                inkwell::OptimizationLevel::Default,
+                inkwell::targets::RelocMode::Default,
+                inkwell::targets::CodeModel::Default,
+            );
+        }
+
         let triple = TargetMachine::get_default_triple();
         let cpu = TargetMachine::get_host_cpu_name().to_string();
         let features = TargetMachine::get_host_cpu_features().to_string();

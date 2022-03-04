@@ -17,3 +17,4 @@ azula_ir = { path = "azula_ir" }
 azula_codegen = { path = "codegen" }
 azula_type = { path = "azula_type" }
 azula_codegen_llvm = { path = "codegen_llvm" }
+azula_cli = { path = "azula_cli" }
