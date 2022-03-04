@@ -19,6 +19,22 @@ or to run directly:
 azula run FILENAME
 ```
 
+## Progress
+
+Short term goals:
+
+- [x] Lexing
+- [x] Parsing
+- [x] Typechecking
+- [x] Azula IR codegen
+- [x] LLVM backend
+- [x] Hooking into C standard library functions
+- [ ] Arrays
+- [ ] Loops
+- [ ] Structures
+- [ ] Methods
+- [ ] Multi-file projects
+
 ### Example Code
 
 ```
