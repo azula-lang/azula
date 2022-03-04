@@ -814,6 +814,17 @@ fn string_transform(str: &str) -> Result<String, usize> {
                     chars.next();
                     result.push('\0');
                 }
+                Some((_, 'x')) => {
+                    chars.next();
+                    let (_, char1) = chars.next().unwrap();
+                    let (_, char2) = chars.next().unwrap();
+                    result.push(
+                        char::from_u32(
+                            i64::from_str_radix(&format!("{}{}", char1, char2), 16).unwrap() as u32,
+                        )
+                        .unwrap(),
+                    );
+                }
                 _ => return Err(index + 1),
             }
         } else {
