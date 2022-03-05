@@ -20,6 +20,8 @@ pub enum ErrorType {
     FunctionNotFound(String),
     MismatchedAssignTypes(String, String),
     NonGlobalConstant,
+    NonIntIndex(String),
+    NonArrayInIndex(String),
 }
 
 impl<'a> ErrorType {
@@ -61,6 +63,12 @@ impl<'a> ErrorType {
             }
             ErrorType::NonGlobalConstant => {
                 "Only constant assigns are allowed at top-level".to_string()
+            }
+            ErrorType::NonIntIndex(got) => {
+                format!("Index must be integer, got {}", got)
+            }
+            ErrorType::NonArrayInIndex(got) => {
+                format!("Cannot index non-array, got {}", got)
             }
         }
     }

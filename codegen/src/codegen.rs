@@ -1,7 +1,9 @@
 use core::panic;
+use std::ops::Deref;
 
 use azula_ast::prelude::*;
 use azula_ir::prelude::*;
+use azula_type::prelude::AzulaType;
 
 pub struct Codegen<'a> {
     root: Statement<'a>,
@@ -233,6 +235,23 @@ impl<'a> Codegen<'a> {
                 Expression::Identifier(ident) => func.ptr(ident.clone()),
                 _ => unreachable!(),
             },
+            Expression::Array(vals) => {
+                let array = func.create_array(vals[0].typed.clone(), vals.len());
+
+                for (index, val) in vals.iter().enumerate() {
+                    let gened = self.codegen_expr(val.clone(), func);
+                    let index = func.const_int(index as i64);
+                    func.store_element(array.clone(), index, gened);
+                }
+
+                return array;
+            }
+            Expression::ArrayAccess(array, index) => {
+                let array = self.codegen_expr(array.deref().clone(), func);
+                let index = self.codegen_expr(index.deref().clone(), func);
+
+                func.access_element(array, index)
+            }
         }
     }
 

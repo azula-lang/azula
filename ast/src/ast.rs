@@ -30,6 +30,7 @@ pub enum Statement<'a> {
         returns: AzulaType<'a>,
         span: Span,
     },
+    Reassign(ExpressionNode<'a>, ExpressionNode<'a>, Span),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -46,6 +47,8 @@ pub enum Expression<'a> {
     },
     Not(Rc<ExpressionNode<'a>>),
     Pointer(Rc<ExpressionNode<'a>>),
+    Array(Vec<ExpressionNode<'a>>),
+    ArrayAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

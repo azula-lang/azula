@@ -33,6 +33,9 @@ pub enum Instruction<'a> {
     Jcond(Value, String, String),
     Jump(String),
     Pointer(String, usize),
+    CreateArray(AzulaType<'a>, usize, usize),
+    StoreElement(Value, Value, Value),
+    AccessElement(Value, Value, usize),
 }
 
 impl<'a> Display for Instruction<'a> {
@@ -86,6 +89,15 @@ impl<'a> Display for Instruction<'a> {
                 write!(f, "jump {}", block)
             }
             Instruction::Pointer(val, dest) => write!(f, "%{}: ptr {}", dest, val),
+            Instruction::CreateArray(typ, size, dest) => {
+                write!(f, "%{}: create_array {:?} {}", dest, typ, size)
+            }
+            Instruction::StoreElement(array, index, val) => {
+                write!(f, "store_element %{:?} {} {}", array, index, val)
+            }
+            Instruction::AccessElement(array, index, dest) => {
+                write!(f, "%{}: access_element %{:?} {}", dest, array, index)
+            }
         }
     }
 }

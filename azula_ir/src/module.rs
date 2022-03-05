@@ -332,6 +332,25 @@ impl<'a> Function<'a> {
         self.add_instruction(Instruction::Jcond(cond, true_block, end_block));
     }
 
+    pub fn create_array(&mut self, typ: AzulaType<'a>, size: usize) -> Value {
+        self.add_instruction(Instruction::CreateArray(typ, size, self.tmp_var_index));
+
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn store_element(&mut self, array: Value, index: Value, value: Value) {
+        self.add_instruction(Instruction::StoreElement(array, index, value));
+    }
+
+    pub fn access_element(&mut self, array: Value, index: Value) -> Value {
+        self.add_instruction(Instruction::AccessElement(array, index, self.tmp_var_index));
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
     fn add_instruction(&mut self, instruction: Instruction<'a>) {
         self.blocks
             .iter_mut()

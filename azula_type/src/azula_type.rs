@@ -11,6 +11,7 @@ pub enum AzulaType<'a> {
     Infer,
     Named(&'a str),
     UnknownType(&'a str),
+    Array(Rc<AzulaType<'a>>, Option<usize>),
 }
 
 impl<'a> From<&'a str> for AzulaType<'a> {

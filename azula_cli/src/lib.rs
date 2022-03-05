@@ -3,7 +3,7 @@ use std::{
     process::{exit, Command},
 };
 
-use azula_codegen::prelude::{Backend, Codegen};
+use azula_codegen::prelude::{Backend, Codegen, OptimizationLevel};
 use azula_codegen_llvm::prelude::LLVMCodegen;
 use azula_parser::prelude::{Lexer, Parser};
 use azula_typecheck::prelude::Typechecker;
@@ -21,6 +21,9 @@ pub struct AzulaCLI {
 enum Commands {
     Run {
         file: String,
+
+        #[clap(long)]
+        release: bool,
     },
     Build {
         file: String,
@@ -30,6 +33,9 @@ enum Commands {
 
         #[clap(long)]
         emit_llvm: bool,
+
+        #[clap(long)]
+        release: bool,
     },
 }
 
@@ -37,8 +43,8 @@ pub fn run() {
     let args = AzulaCLI::parse();
 
     match &args.command {
-        Commands::Run { file } => {
-            let result = build(file, ".build/", None, false);
+        Commands::Run { file, release } => {
+            let result = build(file, ".build/", None, false, *release);
 
             Command::new(format!("./.build/{}", result))
                 .spawn()
@@ -50,8 +56,9 @@ pub fn run() {
             file,
             target,
             emit_llvm,
+            release,
         } => {
-            build(file, "", target.as_ref(), *emit_llvm);
+            build(file, "", target.as_ref(), *emit_llvm, *release);
         }
     }
 }
@@ -61,6 +68,7 @@ fn build<'a>(
     destination: &'a str,
     target: Option<&String>,
     emit_llvm: bool,
+    release: bool,
 ) -> &'a str {
     let input = fs::read_to_string(name).unwrap();
     let lexer: Lexer = input.as_str().into();
@@ -92,9 +100,21 @@ fn build<'a>(
     codegen.codegen();
     codegen.insert_implicit_return();
 
-    // println!("{}", codegen.module);
+    println!("{}", codegen.module);
 
-    LLVMCodegen::codegen(name, destination, emit_llvm, target, codegen.module).unwrap();
+    LLVMCodegen::codegen(
+        name,
+        destination,
+        emit_llvm,
+        target,
+        if release {
+            OptimizationLevel::Aggressive
+        } else {
+            OptimizationLevel::Default
+        },
+        codegen.module,
+    )
+    .unwrap();
 
     return name;
 }

@@ -8,6 +8,14 @@ pub trait Backend<'a> {
         destination: &'a str,
         emit: bool,
         target: Option<&String>,
+        opt_level: OptimizationLevel,
         module: Module<'a>,
     ) -> Result<(), Box<dyn Error>>;
+}
+
+#[derive(PartialEq)]
+pub enum OptimizationLevel {
+    None,
+    Default,
+    Aggressive,
 }

@@ -1,3 +1,4 @@
+use std::array;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ops::Deref;
@@ -5,6 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 use azula_codegen::prelude::Backend;
+use azula_codegen::prelude::OptimizationLevel;
 use azula_ir::prelude::{GlobalValue, Instruction, Module, Value};
 use azula_type::prelude::AzulaType;
 use inkwell::basic_block::BasicBlock;
@@ -25,6 +27,7 @@ pub struct LLVMCodegen<'ctx> {
     globals: HashMap<String, BasicValueEnum<'ctx>>,
 
     target: Option<String>,
+    opt_level: OptimizationLevel,
 }
 
 struct FunctionLocals<'a> {
@@ -40,6 +43,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
         destination: &'ctx str,
         emit: bool,
         target: Option<&String>,
+        opt_level: OptimizationLevel,
         module: Module<'ctx>,
     ) -> Result<(), Box<dyn Error>> {
         let context = Context::create();
@@ -57,6 +61,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
             string_size: HashMap::new(),
             globals: HashMap::new(),
             target,
+            opt_level,
         };
 
         for (name, extern_func) in &module.extern_functions {
@@ -137,7 +142,7 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
         if emit {
             codegen
                 .module
-                .print_to_file(format!(".build/{}.o", name))
+                .print_to_file(format!("{}.ll", name))
                 .unwrap();
         }
 
@@ -145,7 +150,8 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
         codegen.build_object_file(object_file.clone());
 
         if let Some(target) = codegen.target {
-            Command::new("cc")
+            Command::new("zig")
+                .arg("cc")
                 .arg(format!("-o{}{}", destination, name))
                 .arg(object_file)
                 .arg("-target")
@@ -155,7 +161,8 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
                 .wait()
                 .unwrap();
         } else {
-            Command::new("cc")
+            Command::new("zig")
+                .arg("cc")
                 .arg(format!("-o{}{}", destination, name))
                 .arg(object_file)
                 .spawn()
@@ -594,6 +601,56 @@ impl<'a> LLVMCodegen<'a> {
 
                 locals.store(dest, alloca.as_basic_value_enum());
             }
+            Instruction::CreateArray(typ, size, dest) => {
+                let alloca = self.builder.build_alloca(
+                    azula_type_to_llvm_basic_type(self.context, typ).array_type(size as u32),
+                    "array",
+                );
+
+                locals.store(dest, alloca.as_basic_value_enum());
+            }
+            Instruction::StoreElement(array, index, value) => {
+                let array = locals.load(value_to_local(array)).into_pointer_value();
+
+                let index = locals.load(value_to_local(index)).into_int_value();
+
+                let val = match value {
+                    Value::Local(..) => locals.load(value_to_local(value)),
+                    Value::Global(pos) => self.strings.get(&pos).unwrap().as_basic_value_enum(),
+                    _ => unreachable!(),
+                };
+
+                let ptr = unsafe {
+                    self.builder.build_in_bounds_gep(
+                        array,
+                        &[self.context.i64_type().const_int(0, false), index],
+                        "gep",
+                    )
+                };
+
+                self.builder.build_store(ptr, val);
+            }
+            Instruction::AccessElement(array, index, dest) => {
+                let array = locals.load(value_to_local(array)).into_pointer_value();
+
+                let index = locals.load(value_to_local(index)).into_int_value();
+
+                let downcast = self
+                    .builder
+                    .build_int_cast(index, self.context.i32_type(), "cast");
+
+                let ptr = unsafe {
+                    self.builder.build_in_bounds_gep(
+                        array,
+                        &[self.context.i64_type().const_int(0, false), downcast],
+                        "gep",
+                    )
+                };
+
+                let result = self.builder.build_load(ptr, "access");
+
+                locals.store(dest, result.as_basic_value_enum());
+            }
         };
     }
 
@@ -732,11 +789,15 @@ impl<'a> LLVMCodegen<'a> {
             self.module.set_triple(&triple);
             Target::initialize_all(&InitializationConfig::default());
             let target = Target::from_triple(&triple).unwrap();
+            let mut opt_level = inkwell::OptimizationLevel::Default;
+            if self.opt_level == OptimizationLevel::Aggressive {
+                opt_level = inkwell::OptimizationLevel::Aggressive;
+            }
             return target.create_target_machine(
                 &triple,
                 "",
                 "",
-                inkwell::OptimizationLevel::Default,
+                opt_level,
                 inkwell::targets::RelocMode::Default,
                 inkwell::targets::CodeModel::Default,
             );
@@ -749,11 +810,15 @@ impl<'a> LLVMCodegen<'a> {
         self.module.set_triple(&triple);
         Target::initialize_native(&InitializationConfig::default()).unwrap();
         let target = Target::from_triple(&triple).unwrap();
+        let mut opt_level = inkwell::OptimizationLevel::Default;
+        if self.opt_level == OptimizationLevel::Aggressive {
+            opt_level = inkwell::OptimizationLevel::Aggressive;
+        }
         target.create_target_machine(
             &triple,
             &cpu,
             &features,
-            inkwell::OptimizationLevel::Default,
+            opt_level,
             inkwell::targets::RelocMode::Default,
             inkwell::targets::CodeModel::Default,
         )
@@ -796,6 +861,13 @@ fn azula_type_to_llvm_basic_type<'ctx>(
         AzulaType::Infer => unreachable!(),
         AzulaType::Named(_) => todo!(),
         AzulaType::UnknownType(_) => todo!(),
+        AzulaType::Array(typ, size) => {
+            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
+
+            typ.array_type(size.unwrap() as u32)
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum()
+        }
     }
 }
 
@@ -818,6 +890,13 @@ fn azula_type_to_function_llvm_type<'ctx>(
         AzulaType::Infer => todo!(),
         AzulaType::Named(_) => todo!(),
         AzulaType::UnknownType(_) => todo!(),
+        AzulaType::Array(typ, size) => {
+            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
+
+            typ.array_type(size.unwrap() as u32)
+                .ptr_type(AddressSpace::Generic)
+                .fn_type(args, false)
+        }
     }
 }
 
@@ -841,6 +920,13 @@ fn azula_type_to_function_llvm_type_with_varargs<'ctx>(
         AzulaType::Infer => todo!(),
         AzulaType::Named(_) => todo!(),
         AzulaType::UnknownType(_) => todo!(),
+        AzulaType::Array(typ, size) => {
+            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
+
+            typ.array_type(size.unwrap() as u32)
+                .ptr_type(AddressSpace::Generic)
+                .fn_type(args, false)
+        }
     }
 }
 

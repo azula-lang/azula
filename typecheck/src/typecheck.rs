@@ -285,7 +285,39 @@ impl<'a> Typechecker<'a> {
             };
 
             if type_annotation.is_some() {
-                let type_annotation = type_annotation.clone().unwrap();
+                let mut type_annotation = type_annotation.clone().unwrap();
+
+                if let AzulaType::Array(arr_typ, size) = typ.clone() {
+                    if let AzulaType::Array(inner_type, inner_size) = type_annotation.clone() {
+                        if arr_typ != inner_type {
+                            self.errors.push(AzulaError::new(
+                                ErrorType::MismatchedAssignTypes(
+                                    format!("{:?}", type_annotation),
+                                    format!("{:?}", typ),
+                                ),
+                                span.start,
+                                expr.span.end,
+                            ));
+                            return Err("mismatched types in assign".to_string());
+                        }
+
+                        if size.is_some() && inner_size.is_some() {
+                            if size.unwrap() != inner_size.unwrap() {
+                                self.errors.push(AzulaError::new(
+                                    ErrorType::MismatchedAssignTypes(
+                                        format!("{:?}", type_annotation),
+                                        format!("{:?}", typ),
+                                    ),
+                                    span.start,
+                                    expr.span.end,
+                                ));
+                                return Err("mismatched types in assign".to_string());
+                            }
+                        }
+
+                        type_annotation = AzulaType::Array(arr_typ, size);
+                    }
+                }
 
                 if type_annotation != typ {
                     self.errors.push(AzulaError::new(
@@ -495,6 +527,96 @@ impl<'a> Typechecker<'a> {
                         span: expr.span,
                     },
                     AzulaType::Pointer(Rc::new(typ)),
+                ));
+            }
+            Expression::Array(items) => {
+                let typs = items
+                    .iter()
+                    .map(|v| self.typecheck_expression(v.clone(), env))
+                    .collect::<Vec<_>>();
+
+                if typs.is_empty() {
+                    return Ok((
+                        ExpressionNode {
+                            expression: Expression::Array(vec![]),
+                            typed: AzulaType::Array(Rc::new(AzulaType::Infer), Some(0)),
+                            span: expr.span,
+                        },
+                        AzulaType::Array(Rc::new(AzulaType::Infer), Some(0)),
+                    ));
+                }
+
+                let first_typ = &typs[0].as_ref().unwrap().1;
+
+                for val in typs.clone() {
+                    let (node, typ) = match val {
+                        Ok((node, typ)) => (node, typ),
+                        Err(_) => continue,
+                    };
+                    if typ != first_typ.clone() {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::MismatchedTypes(
+                                format!("{:?}", typ),
+                                format!("{:?}", first_typ),
+                            ),
+                            node.span.start,
+                            node.span.end,
+                        ));
+                    }
+                }
+
+                Ok((
+                    ExpressionNode {
+                        expression: Expression::Array(
+                            typs.clone()
+                                .iter()
+                                .map(|s| s.as_ref().unwrap().clone())
+                                .map(|(node, _)| node)
+                                .collect(),
+                        ),
+                        typed: AzulaType::Array(Rc::new(first_typ.clone()), Some(typs.len())),
+                        span: expr.span,
+                    },
+                    AzulaType::Array(Rc::new(first_typ.clone()), Some(typs.len())),
+                ))
+            }
+            Expression::ArrayAccess(array, index) => {
+                let (array, array_typ) = self
+                    .typecheck_expression(array.deref().clone(), env)
+                    .unwrap();
+
+                let (index, typ) = self
+                    .typecheck_expression(index.deref().clone(), env)
+                    .unwrap();
+
+                if typ != AzulaType::Int {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::NonIntIndex(format!("{:?}", typ)),
+                        array.span.start,
+                        index.span.end,
+                    ));
+
+                    return Err("Non int index".to_string());
+                }
+
+                let return_typ = if let AzulaType::Array(nested, _) = array_typ {
+                    nested.deref().clone()
+                } else {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::NonArrayInIndex(format!("{:?}", array_typ)),
+                        array.span.start,
+                        array.span.end,
+                    ));
+                    return Err("non-array in index".to_string());
+                };
+
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::ArrayAccess(Rc::new(array), Rc::new(index)),
+                        typed: return_typ.clone(),
+                        span: expr.span,
+                    },
+                    return_typ,
                 ));
             }
         }
@@ -966,6 +1088,69 @@ mod tests {
         assert!(matches!(
             typechecker.errors[0].error_type,
             ErrorType::NonOperatorType(..)
+        ));
+    }
+
+    #[test]
+    fn test_array_expression() {
+        // Int
+        let array = ExpressionNode {
+            expression: Expression::Array(vec![
+                ExpressionNode {
+                    expression: Expression::Integer(1),
+                    typed: AzulaType::Int,
+                    span: Span { start: 0, end: 1 },
+                },
+                ExpressionNode {
+                    expression: Expression::Integer(2),
+                    typed: AzulaType::Int,
+                    span: Span { start: 0, end: 1 },
+                },
+            ]),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 0 },
+        };
+
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        let mut environment = Environment::new();
+        let (expr, typ) = typechecker
+            .typecheck_expression(array, &environment)
+            .unwrap();
+
+        assert_eq!(typ, AzulaType::Array(Rc::new(AzulaType::Int), Some(2)));
+        assert_eq!(
+            expr.typed,
+            AzulaType::Array(Rc::new(AzulaType::Int), Some(2))
+        );
+
+        // Different types
+        let array = ExpressionNode {
+            expression: Expression::Array(vec![
+                ExpressionNode {
+                    expression: Expression::Integer(1),
+                    typed: AzulaType::Int,
+                    span: Span { start: 0, end: 1 },
+                },
+                ExpressionNode {
+                    expression: Expression::Boolean(false),
+                    typed: AzulaType::Bool,
+                    span: Span { start: 0, end: 1 },
+                },
+            ]),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 0 },
+        };
+
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        let mut environment = Environment::new();
+        let (expr, typ) = typechecker
+            .typecheck_expression(array, &environment)
+            .unwrap();
+
+        assert_eq!(typechecker.errors.len(), 1);
+        assert!(matches!(
+            typechecker.errors[0].error_type,
+            ErrorType::MismatchedTypes(..)
         ));
     }
 }
