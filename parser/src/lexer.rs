@@ -185,6 +185,7 @@ impl<'a> Lexer<'a> {
             "if" => Token::new(TokenKind::If, start, self.index),
             "extern" => Token::new(TokenKind::Extern, start, self.index),
             "varargs" => Token::new(TokenKind::VarArgs, start, self.index),
+            "while" => Token::new(TokenKind::While, start, self.index),
             _ => Token::new(TokenKind::Identifier(value), start, self.index),
         }
     }
@@ -381,6 +382,10 @@ mod tests {
         if_stmt: (
             "if",
             vec![Token::new(TokenKind::If, 0, 2)],
+        ),
+        while_stmt: (
+            "while",
+            vec![Token::new(TokenKind::While, 0, 5)],
         ),
     }
 }

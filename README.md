@@ -29,8 +29,8 @@ Short term goals:
 - [x] Azula IR codegen
 - [x] LLVM backend
 - [x] Hooking into C standard library functions
-- [ ] Arrays
-- [ ] Loops
+- [x] Arrays
+- [x] Loops
 - [ ] Structures
 - [ ] Methods
 - [ ] Multi-file projects

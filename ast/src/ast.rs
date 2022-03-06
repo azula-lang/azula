@@ -31,6 +31,7 @@ pub enum Statement<'a> {
         span: Span,
     },
     Reassign(ExpressionNode<'a>, ExpressionNode<'a>, Span),
+    While(ExpressionNode<'a>, Body<'a>, Span),
 }
 
 #[derive(Debug, PartialEq, Clone)]

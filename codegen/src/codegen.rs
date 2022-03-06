@@ -1,5 +1,5 @@
 use core::panic;
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
 use azula_ast::prelude::*;
 use azula_ir::prelude::*;
@@ -9,6 +9,7 @@ pub struct Codegen<'a> {
     root: Statement<'a>,
 
     pub module: Module<'a>,
+    pub function_calls: HashMap<String, Vec<AzulaType<'a>>>,
 }
 
 impl<'a> Codegen<'a> {
@@ -16,6 +17,7 @@ impl<'a> Codegen<'a> {
         Self {
             root,
             module: Module::new(name),
+            function_calls: HashMap::new(),
         }
     }
 
@@ -63,13 +65,13 @@ impl<'a> Codegen<'a> {
     }
 
     pub fn insert_implicit_return(&mut self) {
-        for (name, func) in self.module.functions.iter_mut() {
+        for (_, func) in self.module.functions.iter_mut() {
             let cloned = func.blocks.clone();
             for (index, (block_name, ref block)) in cloned.iter().enumerate() {
                 let mut block = block.clone();
                 if block.instructions.is_empty() {
                     block.instructions.push(Instruction::Return(None));
-                    *func.blocks.get_mut(index).unwrap() = (name.to_string(), block.clone());
+                    *func.blocks.get_mut(index).unwrap() = (block_name.to_string(), block.clone());
                     continue;
                 }
 
@@ -125,6 +127,8 @@ impl<'a> Codegen<'a> {
                 self.codegen_expr(expr.clone(), func);
             }
             Statement::If(..) => self.codegen_if(stmt, func),
+            Statement::While(..) => self.codegen_while(stmt, func),
+            Statement::Reassign(..) => self.codegen_reassign(stmt, func),
             _ => panic!(),
         }
     }
@@ -134,6 +138,23 @@ impl<'a> Codegen<'a> {
             let value = self.codegen_expr(expr.clone(), func);
             func.store(name.clone(), value, expr.typed.clone());
             func.variables.insert(name, expr.typed);
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn codegen_reassign(&mut self, stmt: Statement<'a>, func: &mut Function<'a>) {
+        if let Statement::Reassign(var, val, _) = stmt {
+            let value = self.codegen_expr(val.clone(), func);
+            match var.expression {
+                Expression::Identifier(v) => func.store(v.clone(), value, val.typed.clone()),
+                Expression::ArrayAccess(array, index) => {
+                    let array = self.codegen_expr(array.deref().clone(), func);
+                    let index = self.codegen_expr(index.deref().clone(), func);
+                    func.store_element(array.clone(), index, value);
+                }
+                _ => todo!(),
+            }
         } else {
             unreachable!()
         }
@@ -170,6 +191,44 @@ impl<'a> Codegen<'a> {
             for stmt in body {
                 self.codegen_statement(stmt, func);
             }
+
+            for (name, block) in &func.blocks.clone() {
+                if name.clone() == func.current_block {
+                    if let Some(Instruction::Return(_)) = block.instructions.last() {
+                    } else {
+                        func.jump(end_name.clone());
+                    }
+                }
+            }
+
+            func.blocks.push((end_name.clone(), Block::new()));
+            func.current_block = end_name.clone();
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn codegen_while(&mut self, stmt: Statement<'a>, func: &mut Function<'a>) {
+        if let Statement::While(cond, body, ..) = stmt {
+            let eval_name = format!("eval-{}", func.if_block_index);
+            let true_name = format!("loop-{}", func.if_block_index);
+            let end_name = format!("end-{}", func.if_block_index);
+
+            func.if_block_index += 1;
+
+            func.jump(eval_name.clone());
+            func.blocks.push((eval_name.clone(), Block::new()));
+            func.current_block = eval_name.clone();
+            let cond_val = self.codegen_expr(cond.clone(), func);
+            func.jcond(cond_val, true_name.clone(), end_name.clone());
+
+            func.blocks.push((true_name.clone(), Block::new()));
+            func.current_block = true_name.clone();
+
+            for stmt in body {
+                self.codegen_statement(stmt, func);
+            }
+            func.jump(eval_name.clone());
 
             func.blocks.push((end_name.clone(), Block::new()));
             func.current_block = end_name.clone();
@@ -219,6 +278,13 @@ impl<'a> Codegen<'a> {
                     Expression::Identifier(name) => name,
                     _ => todo!(),
                 };
+
+                // if name == "__array_len" {
+                //     match args[0].typed {
+                //         AzulaType::Array(_, size) => return func.const_int(size.unwrap() as i64),
+                //         _ => unreachable!("{:?}", args[0].typed),
+                //     }
+                // }
 
                 let args = args
                     .iter()

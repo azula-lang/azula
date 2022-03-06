@@ -51,6 +51,7 @@ pub enum TokenKind<'a> {
     If,       // If
     Extern,   // extern
     VarArgs,  // varargs
+    While,    // while
 
     Comment,
     UnknownToken,

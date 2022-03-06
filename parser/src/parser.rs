@@ -54,6 +54,7 @@ impl<'a> Parser<'a> {
             TokenKind::Var => self.parse_assign(true),
             TokenKind::Const => self.parse_assign(false),
             TokenKind::If => self.parse_if(),
+            TokenKind::While => self.parse_while(),
             TokenKind::SemiColon => {
                 self.lexer.next();
                 None
@@ -381,6 +382,32 @@ impl<'a> Parser<'a> {
         ))
     }
 
+    fn parse_while(&mut self) -> Option<Statement<'a>> {
+        // while
+        let start_token = self.lexer.next().unwrap();
+
+        let expr = self.parse_expression(LOWEST);
+
+        if !self.expect_peek(TokenKind::BraceOpen) {
+            return None;
+        }
+
+        self.lexer.next();
+
+        let body = self.parse_block(TokenKind::BraceClose);
+
+        let end_token = self.lexer.next().unwrap();
+
+        Some(Statement::While(
+            expr.unwrap(),
+            body,
+            Span {
+                start: start_token.span.start,
+                end: end_token.span.end,
+            },
+        ))
+    }
+
     fn parse_type(&mut self) -> AzulaType<'a> {
         if let Some(tok) = self.lexer.next() {
             if let TokenKind::Identifier(ident) = tok.kind {
@@ -460,8 +487,11 @@ impl<'a> Parser<'a> {
     ) -> Vec<TypedIdentifier<'a>> {
         let closing_delimiter = opening_delimiter.get_closing_delimiter().unwrap();
 
+        self.lexer.next();
+
         if let Some(peek) = self.lexer.peek() {
             if peek.kind == closing_delimiter {
+                self.lexer.next();
                 return vec![];
             }
         } else {
@@ -472,8 +502,6 @@ impl<'a> Parser<'a> {
             ));
             return vec![];
         }
-
-        self.lexer.next();
 
         let mut identifiers = vec![];
 
@@ -869,6 +897,37 @@ impl<'a> Parser<'a> {
         }
 
         let mut peek = self.lexer.peek().unwrap().kind.clone();
+        // Parse initialiser like [0; 20]
+        if peek == TokenKind::SemiColon {
+            self.lexer.next();
+
+            if let TokenKind::Integer(v) = self.lexer.next().unwrap().kind {
+                for _ in 0..v - 1 {
+                    expressions.push(expressions[0].clone());
+                }
+                self.expect_peek(TokenKind::SquareClose);
+
+                let close = self.lexer.next().unwrap();
+                return Some(ExpressionNode {
+                    expression: Expression::Array(expressions.clone()),
+                    typed: AzulaType::Array(Rc::new(AzulaType::Infer), Some(expressions.len())),
+                    span: Span {
+                        start: tok.span.start,
+                        end: close.span.end,
+                    },
+                });
+            } else {
+                self.expect_peek(TokenKind::SquareClose);
+
+                let close = self.lexer.next().unwrap();
+                self.errors.push(AzulaError::new(
+                    ErrorType::ArrayInitialiserSizeNonConstant,
+                    tok.span.start,
+                    close.span.end,
+                ));
+                return None;
+            }
+        }
         while peek == TokenKind::Comma {
             self.lexer.next();
             if let Some(expr) = self.parse_expression(LOWEST) {
@@ -1072,6 +1131,30 @@ mod tests {
         let mut parser = Parser::new(input, lexer);
 
         let func = parser.parse_function().unwrap();
+        assert!(matches!(func, Statement::Function { .. }));
+        if let Statement::Function {
+            name,
+            args,
+            returns,
+            body,
+            ..
+        } = func
+        {
+            assert_eq!(name, "main");
+            assert_eq!(args, vec![]);
+            assert_eq!(returns, AzulaType::Void);
+            assert_eq!(body, Rc::new(Statement::Block(vec![])));
+        }
+
+        // No args, no return
+        let input = "func main() { }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let func = parser.parse_function();
+        println!("{:?}", parser.errors);
+
+        let func = func.unwrap();
         assert!(matches!(func, Statement::Function { .. }));
         if let Statement::Function {
             name,
@@ -1336,6 +1419,40 @@ mod tests {
                     span: Span { start: 4, end: 5 }
                 },
                 Span { start: 0, end: 6 },
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_while() {
+        // Basic int
+        let input = "while x { i = 1; }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let stmt = parser.parse_statement().unwrap();
+        assert_eq!(
+            stmt,
+            Statement::While(
+                ExpressionNode {
+                    expression: Expression::Identifier("x".to_string()),
+                    typed: AzulaType::Infer,
+                    span: Span { start: 6, end: 7 }
+                },
+                vec![Statement::Reassign(
+                    ExpressionNode {
+                        expression: Expression::Identifier("i".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 10, end: 11 },
+                    },
+                    ExpressionNode {
+                        expression: Expression::Integer(1),
+                        typed: AzulaType::Int,
+                        span: Span { start: 14, end: 15 },
+                    },
+                    Span { start: 10, end: 16 }
+                )],
+                Span { start: 0, end: 18 },
             )
         );
     }
@@ -1671,6 +1788,43 @@ mod tests {
 
         let expression = parser.parse_expression(LOWEST).unwrap();
         assert_eq!(expression.expression, Expression::Array(vec![]));
+
+        // Array initialiser
+        let input = "[0; 5]";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expression = parser.parse_expression(LOWEST).unwrap();
+        assert_eq!(
+            expression.expression,
+            Expression::Array(vec![
+                ExpressionNode {
+                    expression: Expression::Integer(0),
+                    typed: AzulaType::Int,
+                    span: Span { start: 1, end: 2 }
+                },
+                ExpressionNode {
+                    expression: Expression::Integer(0),
+                    typed: AzulaType::Int,
+                    span: Span { start: 1, end: 2 }
+                },
+                ExpressionNode {
+                    expression: Expression::Integer(0),
+                    typed: AzulaType::Int,
+                    span: Span { start: 1, end: 2 }
+                },
+                ExpressionNode {
+                    expression: Expression::Integer(0),
+                    typed: AzulaType::Int,
+                    span: Span { start: 1, end: 2 }
+                },
+                ExpressionNode {
+                    expression: Expression::Integer(0),
+                    typed: AzulaType::Int,
+                    span: Span { start: 1, end: 2 }
+                }
+            ])
+        );
     }
 
     #[test]

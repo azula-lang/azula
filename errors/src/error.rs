@@ -10,6 +10,7 @@ pub enum ErrorType {
     ExpectedStatement(String),
     UnexpectedEOF,
     InvalidEscape,
+    ArrayInitialiserSizeNonConstant,
 
     // Typecheck
     UnknownVariable(String),
@@ -22,6 +23,7 @@ pub enum ErrorType {
     NonGlobalConstant,
     NonIntIndex(String),
     NonArrayInIndex(String),
+    ConstantAssign,
 }
 
 impl<'a> ErrorType {
@@ -36,6 +38,9 @@ impl<'a> ErrorType {
             ErrorType::ExpectedStatement(got) => format!("Expected a statement, got {:?}", got),
             ErrorType::UnexpectedEOF => "Unexpected EOF".to_string(),
             ErrorType::InvalidEscape => "Invalid use of escape".to_string(),
+            ErrorType::ArrayInitialiserSizeNonConstant => {
+                "Array initialiser size must be a constant int".to_string()
+            }
             ErrorType::UnknownVariable(name) => format!("Unknown variable {:?}", name),
             ErrorType::MismatchedTypes(left, right) => {
                 format!("Mismatched types: {:?} and {:?}", left, right)
@@ -70,6 +75,7 @@ impl<'a> ErrorType {
             ErrorType::NonArrayInIndex(got) => {
                 format!("Cannot index non-array, got {}", got)
             }
+            ErrorType::ConstantAssign => "Cannot assign to constant".to_string(),
         }
     }
 }

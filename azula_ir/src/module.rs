@@ -332,6 +332,10 @@ impl<'a> Function<'a> {
         self.add_instruction(Instruction::Jcond(cond, true_block, end_block));
     }
 
+    pub fn jump(&mut self, block: String) {
+        self.add_instruction(Instruction::Jump(block));
+    }
+
     pub fn create_array(&mut self, typ: AzulaType<'a>, size: usize) -> Value {
         self.add_instruction(Instruction::CreateArray(typ, size, self.tmp_var_index));
 
@@ -381,4 +385,5 @@ pub enum GlobalValue {
     Float(f64),
     Bool(bool),
     String(usize),
+    Array(Vec<GlobalValue>),
 }

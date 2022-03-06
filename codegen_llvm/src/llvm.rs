@@ -1,4 +1,3 @@
-use std::array;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ops::Deref;
@@ -96,8 +95,8 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
         let mut i = 0;
 
         for (name, func) in &module.functions {
-            // let mut linkage = Some(Linkage::Private);
-            let mut linkage = None;
+            let mut linkage = Some(Linkage::Private);
+            // let mut linkage = None;
             if *name == "main" {
                 linkage = None;
             }
@@ -238,6 +237,7 @@ impl<'a> LLVMCodegen<'a> {
                     val.as_basic_value_enum()
                 }
                 GlobalValue::String(s) => *self.strings.get(&s).unwrap(),
+                GlobalValue::Array(_) => todo!(),
             };
 
             self.globals.insert(name.clone(), ptr);
@@ -272,24 +272,40 @@ impl<'a> LLVMCodegen<'a> {
                     Value::LiteralInteger(_) => todo!(),
                     Value::LiteralBoolean(_) => todo!(),
                     Value::Global(y) => {
-                        let alloca = self.builder.build_alloca(
-                            azula_type_to_llvm_basic_type(self.context, typ),
-                            "alloca",
-                        );
+                        // let alloca = self.builder.build_alloca(
+                        //     azula_type_to_llvm_basic_type(self.context, typ),
+                        //     "alloca",
+                        // );
+                        let alloca = if locals.variables.contains_key(&name) {
+                            locals.variables.get(&name).unwrap().into_pointer_value()
+                        } else {
+                            let alloca = self.builder.build_alloca(
+                                azula_type_to_llvm_basic_type(self.context, typ),
+                                "alloca",
+                            );
+                            locals.variables.insert(name, alloca.as_basic_value_enum());
+
+                            alloca
+                        };
                         self.builder.build_store(
                             alloca,
                             self.strings.get(&y).unwrap().as_basic_value_enum(),
                         );
-                        locals.variables.insert(name, alloca.as_basic_value_enum());
                         return;
                     }
                 };
-                let alloca = self
-                    .builder
-                    .build_alloca(azula_type_to_llvm_basic_type(self.context, typ), "alloca");
-                self.builder.build_store(alloca, value);
 
-                locals.variables.insert(name, alloca.as_basic_value_enum());
+                let alloca = if locals.variables.contains_key(&name) {
+                    locals.variables.get(&name).unwrap().into_pointer_value()
+                } else {
+                    let alloca = self
+                        .builder
+                        .build_alloca(azula_type_to_llvm_basic_type(self.context, typ), "alloca");
+                    locals.variables.insert(name, alloca.as_basic_value_enum());
+
+                    alloca
+                };
+                self.builder.build_store(alloca, value);
             }
             Instruction::ConstInt(val, dest) => {
                 locals.registers.insert(
@@ -472,11 +488,15 @@ impl<'a> LLVMCodegen<'a> {
                 locals.store(dest, value.as_basic_value_enum());
             }
             Instruction::Jump(val) => {
-                let jump_block = self.context.append_basic_block(*func, val.clone().as_str());
-                locals.blocks.insert(val.clone(), jump_block);
-                self.builder.build_unconditional_branch(jump_block);
+                if let Some(block) = locals.blocks.get(&val) {
+                    self.builder.build_unconditional_branch(*block);
+                } else {
+                    let jump_block = self.context.append_basic_block(*func, val.clone().as_str());
+                    locals.blocks.insert(val.clone(), jump_block);
+                    self.builder.build_unconditional_branch(jump_block);
 
-                self.builder.position_at_end(jump_block);
+                    self.builder.position_at_end(jump_block);
+                }
             }
             Instruction::Gt(val1, val2, dest) => {
                 let local1 = locals.load(value_to_local(val1));
@@ -635,14 +655,14 @@ impl<'a> LLVMCodegen<'a> {
 
                 let index = locals.load(value_to_local(index)).into_int_value();
 
-                let downcast = self
-                    .builder
-                    .build_int_cast(index, self.context.i32_type(), "cast");
+                // let downcast = self
+                //     .builder
+                //     .build_int_cast(index, self.context.i32_type(), "cast");
 
                 let ptr = unsafe {
                     self.builder.build_in_bounds_gep(
                         array,
-                        &[self.context.i64_type().const_int(0, false), downcast],
+                        &[self.context.i64_type().const_int(0, false), index],
                         "gep",
                     )
                 };

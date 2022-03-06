@@ -152,6 +152,8 @@ impl<'a> Typechecker<'a> {
                 ))
             }
             Statement::If(..) => self.typecheck_if(stmt, env),
+            Statement::While(..) => self.typecheck_while(stmt, env),
+            Statement::Reassign(..) => self.typecheck_reassign(stmt, env),
             _ => unreachable!("{:?}", stmt),
         }
     }
@@ -221,11 +223,14 @@ impl<'a> Typechecker<'a> {
             //     Err(e) => return Err(e),
             // };
 
-            let typ = match value.expression {
+            let typ = match value.expression.clone() {
                 Expression::Integer(_) => AzulaType::Int,
                 Expression::Float(_) => AzulaType::Float,
                 Expression::Boolean(_) => AzulaType::Bool,
                 Expression::String(_) => AzulaType::Pointer(Rc::new(AzulaType::Str)),
+                Expression::Array(val) => {
+                    AzulaType::Array(Rc::new(val[0].typed.clone()), Some(val.len()))
+                }
                 _ => {
                     self.errors.push(AzulaError::new(
                         ErrorType::NonGlobalConstant,
@@ -350,6 +355,70 @@ impl<'a> Typechecker<'a> {
         }
     }
 
+    fn typecheck_reassign(
+        &mut self,
+        expr: Statement<'a>,
+        env: &mut Environment<'a>,
+    ) -> Result<(Statement<'a>, AzulaType<'a>), String> {
+        if let Statement::Reassign(var, val, span) = expr {
+            let (val, typ) = match self.typecheck_expression(val, env) {
+                Ok((expr, value)) => (expr, value),
+                Err(e) => return Err(e),
+            };
+
+            let mut mutable = true;
+            match var.expression {
+                Expression::Identifier(ref v) => match env.variable_definitions.get(v) {
+                    Some(var) => {
+                        mutable = var.mutable;
+                    }
+                    _ => {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::UnknownVariable(v.clone()),
+                            var.span.start,
+                            var.span.end,
+                        ));
+                        return Err("unknown variable".to_string());
+                    }
+                },
+                Expression::ArrayAccess(..) => {}
+                _ => {
+                    unreachable!("{:?}", var.expression)
+                }
+            }
+
+            if !mutable {
+                self.errors.push(AzulaError::new(
+                    ErrorType::ConstantAssign,
+                    var.span.start,
+                    var.span.end,
+                ));
+                return Err("constant assign".to_string());
+            }
+
+            let (variable, var_type) = match self.typecheck_expression(var, env) {
+                Ok((expr, value)) => (expr, value),
+                Err(e) => return Err(e),
+            };
+
+            if var_type != typ {
+                self.errors.push(AzulaError::new(
+                    ErrorType::MismatchedAssignTypes(
+                        format!("{:?}", var_type),
+                        format!("{:?}", typ),
+                    ),
+                    span.start,
+                    val.span.end,
+                ));
+                return Err("mismatched types in assign".to_string());
+            }
+
+            Ok((Statement::Reassign(variable, val, span), AzulaType::Void))
+        } else {
+            unreachable!()
+        }
+    }
+
     fn typecheck_return(
         &mut self,
         expr: Statement<'a>,
@@ -400,6 +469,40 @@ impl<'a> Typechecker<'a> {
             }
 
             Ok((Statement::If(expr, stmts, span.clone()), AzulaType::Void))
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn typecheck_while(
+        &mut self,
+        stmt: Statement<'a>,
+        env: &mut Environment<'a>,
+    ) -> Result<(Statement<'a>, AzulaType<'a>), String> {
+        if let Statement::While(ref expr, ref body, ref span) = stmt {
+            let (expr, typ) = match self.typecheck_expression(expr.clone(), env) {
+                Ok((expr, value)) => (expr, value),
+                Err(e) => return Err(e),
+            };
+
+            if typ != AzulaType::Bool {
+                self.errors.push(AzulaError::new(
+                    ErrorType::NonBoolCondition(format!("{:?}", typ)),
+                    expr.span.start,
+                    expr.span.end,
+                ));
+                return Err("Non boolean condition".to_string());
+            }
+
+            let mut stmts = vec![];
+            for stmt in body {
+                match self.typecheck_statement(stmt.clone(), env) {
+                    Ok((stmt, _)) => stmts.push(stmt),
+                    Err(e) => return Err(e),
+                };
+            }
+
+            Ok((Statement::While(expr, stmts, span.clone()), AzulaType::Void))
         } else {
             unreachable!()
         }
