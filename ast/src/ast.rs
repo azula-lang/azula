@@ -32,6 +32,11 @@ pub enum Statement<'a> {
     },
     Reassign(ExpressionNode<'a>, ExpressionNode<'a>, Span),
     While(ExpressionNode<'a>, Body<'a>, Span),
+    Struct {
+        name: &'a str,
+        attributes: Vec<TypedIdentifier<'a>>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -50,6 +55,8 @@ pub enum Expression<'a> {
     Pointer(Rc<ExpressionNode<'a>>),
     Array(Vec<ExpressionNode<'a>>),
     ArrayAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
+    StructInitialisation(Rc<ExpressionNode<'a>>, Vec<(&'a str, ExpressionNode<'a>)>),
+    StructAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

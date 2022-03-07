@@ -52,6 +52,7 @@ pub enum TokenKind<'a> {
     Extern,   // extern
     VarArgs,  // varargs
     While,    // while
+    Struct,   // struct
 
     Comment,
     UnknownToken,

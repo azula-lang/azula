@@ -58,6 +58,11 @@ impl<'a> Codegen<'a> {
 
                         self.module.global_values.insert(name, value);
                     }
+                    Statement::Struct {
+                        name, attributes, ..
+                    } => {
+                        self.module.add_struct(name, Struct { name, attributes });
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -152,6 +157,27 @@ impl<'a> Codegen<'a> {
                     let array = self.codegen_expr(array.deref().clone(), func);
                     let index = self.codegen_expr(index.deref().clone(), func);
                     func.store_element(array.clone(), index, value);
+                }
+                Expression::StructAccess(struc, member) => {
+                    let struc_val = self.codegen_expr(struc.deref().clone(), func);
+                    let member_name = match &member.expression {
+                        Expression::Identifier(v) => v,
+                        _ => unreachable!(),
+                    };
+                    let struct_name = match &struc.typed {
+                        AzulaType::Named(name) => name.clone(),
+                        _ => unreachable!("{:?}", struc.typed),
+                    };
+
+                    let struct_def = self.module.structs.get(struct_name.as_str()).unwrap();
+                    let index = struct_def
+                        .attributes
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (_, name))| name.to_string() == member_name.to_string())
+                        .map(|(index, _)| index)
+                        .unwrap();
+                    func.store_struct_member(struc_val.clone(), index, value)
                 }
                 _ => todo!(),
             }
@@ -317,6 +343,43 @@ impl<'a> Codegen<'a> {
                 let index = self.codegen_expr(index.deref().clone(), func);
 
                 func.access_element(array, index)
+            }
+            Expression::StructInitialisation(struc, vals) => {
+                let values: Vec<_> = vals
+                    .iter()
+                    .map(|(_, v)| self.codegen_expr(v.deref().clone(), func))
+                    .collect();
+
+                let name = match &struc.expression {
+                    Expression::Identifier(s) => s,
+                    _ => unreachable!(),
+                };
+
+                func.create_struct(name.clone(), values)
+            }
+            Expression::StructAccess(struc, member) => {
+                let struct_value = self.codegen_expr(struc.deref().clone(), func);
+
+                let member_name = match &member.expression {
+                    Expression::Identifier(s) => s.clone(),
+                    _ => unreachable!(),
+                };
+
+                let struct_name = match &struc.typed {
+                    AzulaType::Named(name) => name.clone(),
+                    _ => unreachable!("{:?}", struc.typed),
+                };
+
+                let struct_def = self.module.structs.get(struct_name.as_str()).unwrap();
+                let index = struct_def
+                    .attributes
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (_, name))| name.to_string() == member_name)
+                    .map(|(index, _)| index)
+                    .unwrap();
+
+                func.access_struct_member(struct_value, index)
             }
         }
     }

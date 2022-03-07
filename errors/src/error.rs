@@ -24,6 +24,9 @@ pub enum ErrorType {
     NonIntIndex(String),
     NonArrayInIndex(String),
     ConstantAssign,
+    AccessNonStruct,
+    UnknownStruct(String),
+    UnknownStructMember(String, String),
 }
 
 impl<'a> ErrorType {
@@ -76,6 +79,13 @@ impl<'a> ErrorType {
                 format!("Cannot index non-array, got {}", got)
             }
             ErrorType::ConstantAssign => "Cannot assign to constant".to_string(),
+            ErrorType::AccessNonStruct => "Cannot access non-struct".to_string(),
+            ErrorType::UnknownStruct(struc) => {
+                format!("Struct {} not found", struc)
+            }
+            ErrorType::UnknownStructMember(struc, member) => {
+                format!("Struct {} attribute {} not found", struc, member)
+            }
         }
     }
 }

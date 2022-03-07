@@ -36,6 +36,9 @@ pub enum Instruction<'a> {
     CreateArray(AzulaType<'a>, usize, usize),
     StoreElement(Value, Value, Value),
     AccessElement(Value, Value, usize),
+    CreateStruct(String, Vec<Value>, usize),
+    StoreStructMember(Value, usize, Value),
+    AccessStructMember(Value, usize, usize),
 }
 
 impl<'a> Display for Instruction<'a> {
@@ -97,6 +100,15 @@ impl<'a> Display for Instruction<'a> {
             }
             Instruction::AccessElement(array, index, dest) => {
                 write!(f, "%{}: access_element %{:?} {}", dest, array, index)
+            }
+            Instruction::CreateStruct(name, vals, dest) => {
+                write!(f, "%{}: create_struct {} [{:?}]", dest, name, vals)
+            }
+            Instruction::StoreStructMember(struc, index, val) => {
+                write!(f, "store_struct_member %{}.{} %{}", struc, index, val)
+            }
+            Instruction::AccessStructMember(struc, index, dest) => {
+                write!(f, "%{}: access_struct_member {}.{}", dest, struc, index)
             }
         }
     }

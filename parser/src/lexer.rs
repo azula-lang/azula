@@ -186,6 +186,7 @@ impl<'a> Lexer<'a> {
             "extern" => Token::new(TokenKind::Extern, start, self.index),
             "varargs" => Token::new(TokenKind::VarArgs, start, self.index),
             "while" => Token::new(TokenKind::While, start, self.index),
+            "struct" => Token::new(TokenKind::Struct, start, self.index),
             _ => Token::new(TokenKind::Identifier(value), start, self.index),
         }
     }
@@ -386,6 +387,10 @@ mod tests {
         while_stmt: (
             "while",
             vec![Token::new(TokenKind::While, 0, 5)],
+        ),
+        struct_stmt: (
+            "struct",
+            vec![Token::new(TokenKind::Struct, 0, 6)],
         ),
     }
 }

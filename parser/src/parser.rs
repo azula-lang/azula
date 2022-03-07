@@ -18,7 +18,9 @@ const LESS_GREATER: OperatorPrecedence = 3;
 const SUM: OperatorPrecedence = 4;
 const PRODUCT: OperatorPrecedence = 5;
 const PREFIX: OperatorPrecedence = 6;
-const CALL: OperatorPrecedence = 7;
+const STRUCT_INIT: OperatorPrecedence = 7;
+const CALL: OperatorPrecedence = 8;
+const ACCESS: OperatorPrecedence = 9;
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -50,6 +52,7 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Function => self.parse_function(),
             TokenKind::Extern => self.parse_extern_function(),
+            TokenKind::Struct => self.parse_struct(),
             TokenKind::Return => self.parse_return(),
             TokenKind::Var => self.parse_assign(true),
             TokenKind::Const => self.parse_assign(false),
@@ -64,7 +67,7 @@ impl<'a> Parser<'a> {
                 None
             }
             _ => {
-                let expr = match self.parse_expression(LOWEST) {
+                let expr = match self.parse_expression(LOWEST, true) {
                     Some(node) => node,
                     None => return None,
                 };
@@ -224,6 +227,41 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_struct(&mut self) -> Option<Statement<'a>> {
+        // struct
+        let start_token = self.lexer.next().unwrap();
+
+        // Parse name of the struct
+        let tok = self.lexer.next();
+        let ident = match tok {
+            Some(v) if matches!(v.kind, TokenKind::Identifier(_)) => {
+                if let TokenKind::Identifier(val) = v.kind {
+                    val
+                } else {
+                    "anon"
+                }
+            }
+            _ => return None,
+        };
+
+        // Parse struct arguments
+        let mut args = vec![];
+        if let Some(tok) = self.lexer.peek() {
+            if tok.kind == TokenKind::BraceOpen {
+                args = self.parse_typed_identifier_list(TokenKind::BraceOpen);
+            }
+        }
+
+        Some(Statement::Struct {
+            name: ident,
+            attributes: args,
+            span: Span {
+                start: start_token.span.start,
+                end: start_token.span.end,
+            },
+        })
+    }
+
     fn parse_return(&mut self) -> Option<Statement<'a>> {
         // return
         let start_token = self.lexer.next().unwrap();
@@ -239,7 +277,7 @@ impl<'a> Parser<'a> {
                     },
                 ))
             } else {
-                let expr = if let Some(expr) = self.parse_expression(LOWEST) {
+                let expr = if let Some(expr) = self.parse_expression(LOWEST, true) {
                     expr
                 } else {
                     return None;
@@ -307,7 +345,7 @@ impl<'a> Parser<'a> {
 
         self.lexer.next();
 
-        let expr = if let Some(expr) = self.parse_expression(LOWEST) {
+        let expr = if let Some(expr) = self.parse_expression(LOWEST, true) {
             expr
         } else {
             return None;
@@ -334,7 +372,7 @@ impl<'a> Parser<'a> {
     fn parse_reassign(&mut self, ident: ExpressionNode<'a>) -> Option<Statement<'a>> {
         self.lexer.next();
 
-        let expr = if let Some(expr) = self.parse_expression(LOWEST) {
+        let expr = if let Some(expr) = self.parse_expression(LOWEST, true) {
             expr
         } else {
             return None;
@@ -360,7 +398,7 @@ impl<'a> Parser<'a> {
         // if
         let start_token = self.lexer.next().unwrap();
 
-        let expr = self.parse_expression(LOWEST);
+        let expr = self.parse_expression(LOWEST, false);
 
         if !self.expect_peek(TokenKind::BraceOpen) {
             return None;
@@ -386,7 +424,7 @@ impl<'a> Parser<'a> {
         // while
         let start_token = self.lexer.next().unwrap();
 
-        let expr = self.parse_expression(LOWEST);
+        let expr = self.parse_expression(LOWEST, false);
 
         if !self.expect_peek(TokenKind::BraceOpen) {
             return None;
@@ -512,6 +550,9 @@ impl<'a> Parser<'a> {
         let mut peek = self.lexer.peek().unwrap().kind.clone();
         while peek == TokenKind::Comma {
             self.lexer.next();
+            if self.lexer.peek().unwrap().kind == closing_delimiter {
+                break;
+            }
             if let Some((typ, name)) = self.parse_typed_identifier() {
                 identifiers.push((typ, name));
             }
@@ -588,7 +629,11 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn parse_expression(&mut self, precedence: OperatorPrecedence) -> Option<ExpressionNode<'a>> {
+    fn parse_expression(
+        &mut self,
+        precedence: OperatorPrecedence,
+        allow_struct_init: bool,
+    ) -> Option<ExpressionNode<'a>> {
         let tok = if let Some(tok) = self.lexer.next() {
             tok
         } else {
@@ -605,7 +650,7 @@ impl<'a> Parser<'a> {
                 if let Some(peek) = self.lexer.peek() {
                     if peek.kind == TokenKind::Dot {
                         self.lexer.next();
-                        let second_number = self.parse_expression(CALL).unwrap();
+                        let second_number = self.parse_expression(CALL, false).unwrap();
                         match second_number.expression {
                             Expression::Integer(y) => Some(ExpressionNode {
                                 expression: Expression::Float(
@@ -686,7 +731,7 @@ impl<'a> Parser<'a> {
                 },
             }),
             TokenKind::BracketOpen => {
-                let expr = self.parse_expression(LOWEST).unwrap();
+                let expr = self.parse_expression(LOWEST, true).unwrap();
 
                 self.expect_peek(TokenKind::BracketClose);
 
@@ -695,7 +740,7 @@ impl<'a> Parser<'a> {
                 Some(expr)
             }
             TokenKind::Bang => {
-                let expr = self.parse_expression(PREFIX).unwrap();
+                let expr = self.parse_expression(PREFIX, true).unwrap();
 
                 Some(ExpressionNode {
                     expression: Expression::Not(Rc::new(expr.clone())),
@@ -707,7 +752,7 @@ impl<'a> Parser<'a> {
                 })
             }
             TokenKind::Ampersand => {
-                let expr = self.parse_expression(PREFIX).unwrap();
+                let expr = self.parse_expression(PREFIX, true).unwrap();
 
                 Some(ExpressionNode {
                     expression: Expression::Pointer(Rc::new(expr.clone())),
@@ -738,12 +783,12 @@ impl<'a> Parser<'a> {
 
         // Keep creating infix expressions until precedence is higher or semicolon found
         while peek_token.clone() != TokenKind::SemiColon
-            && precedence < operator_precedence(peek_token.clone())
+            && precedence < operator_precedence(peek_token.clone(), allow_struct_init)
         {
             if left.is_none() {
                 return None;
             }
-            left = self.parse_infix(left.unwrap());
+            left = self.parse_infix(left.unwrap(), allow_struct_init);
             peek_token = if let Some(v) = self.lexer.peek() {
                 &v.kind
             } else {
@@ -774,14 +819,14 @@ impl<'a> Parser<'a> {
 
         let mut expressions = vec![];
 
-        if let Some(expr) = self.parse_expression(LOWEST) {
+        if let Some(expr) = self.parse_expression(LOWEST, true) {
             expressions.push(expr);
         }
 
         let mut peek = self.lexer.peek().unwrap().kind.clone();
         while peek == TokenKind::Comma {
             self.lexer.next();
-            if let Some(expr) = self.parse_expression(LOWEST) {
+            if let Some(expr) = self.parse_expression(LOWEST, true) {
                 expressions.push(expr);
             }
             peek = self.lexer.peek().unwrap().kind.clone();
@@ -792,13 +837,19 @@ impl<'a> Parser<'a> {
         expressions
     }
 
-    fn parse_infix(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
+    fn parse_infix(
+        &mut self,
+        left: ExpressionNode<'a>,
+        allow_struct_init: bool,
+    ) -> Option<ExpressionNode<'a>> {
         let operator = self.lexer.peek().unwrap();
         let kind = operator.kind.clone();
 
         match kind {
+            TokenKind::Dot => self.parse_struct_access(left),
             TokenKind::BracketOpen => self.parse_function_call(left),
             TokenKind::SquareOpen => self.parse_array_access(left),
+            TokenKind::BraceOpen if allow_struct_init => self.parse_struct_init(left),
             TokenKind::Plus
             | TokenKind::Minus
             | TokenKind::Asterisk
@@ -813,11 +864,12 @@ impl<'a> Parser<'a> {
             | TokenKind::LessEqual
             | TokenKind::Greater
             | TokenKind::GreaterEqual => {
-                let precedence = operator_precedence(operator.kind.clone());
+                let precedence = operator_precedence(operator.kind.clone(), allow_struct_init);
 
                 self.lexer.next();
 
-                let right = if let Some(expr) = self.parse_expression(precedence) {
+                let right = if let Some(expr) = self.parse_expression(precedence, allow_struct_init)
+                {
                     expr
                 } else {
                     return None;
@@ -892,7 +944,7 @@ impl<'a> Parser<'a> {
 
         let mut expressions = vec![];
 
-        if let Some(expr) = self.parse_expression(LOWEST) {
+        if let Some(expr) = self.parse_expression(LOWEST, true) {
             expressions.push(expr);
         }
 
@@ -930,7 +982,7 @@ impl<'a> Parser<'a> {
         }
         while peek == TokenKind::Comma {
             self.lexer.next();
-            if let Some(expr) = self.parse_expression(LOWEST) {
+            if let Some(expr) = self.parse_expression(LOWEST, true) {
                 expressions.push(expr);
             }
             peek = self.lexer.peek().unwrap().kind.clone();
@@ -952,7 +1004,7 @@ impl<'a> Parser<'a> {
 
     fn parse_array_access(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
         self.lexer.next();
-        let index = match self.parse_expression(LOWEST) {
+        let index = match self.parse_expression(LOWEST, true) {
             Some(expr) => expr,
             None => return None,
         };
@@ -965,6 +1017,100 @@ impl<'a> Parser<'a> {
 
         Some(ExpressionNode {
             expression: Expression::ArrayAccess(Rc::new(left.clone()), Rc::new(index)),
+            typed: AzulaType::Infer,
+            span: Span {
+                start: left.span.start,
+                end: end_token.span.end,
+            },
+        })
+    }
+
+    fn parse_struct_access(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
+        self.lexer.next();
+        let index = match self.parse_expression(ACCESS, false) {
+            Some(expr) => expr,
+            None => return None,
+        };
+
+        Some(ExpressionNode {
+            expression: Expression::StructAccess(Rc::new(left.clone()), Rc::new(index.clone())),
+            typed: AzulaType::Infer,
+            span: Span {
+                start: left.span.start,
+                end: index.span.end,
+            },
+        })
+    }
+
+    fn parse_struct_init(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
+        // {
+        self.lexer.next();
+
+        let mut attrs = vec![];
+
+        let mut peek = match self.lexer.peek() {
+            Some(peek) => peek.kind.clone(),
+            None => {
+                self.errors.push(AzulaError::new(
+                    ErrorType::UnexpectedEOF,
+                    self.source.len() - 2,
+                    self.source.len() - 1,
+                ));
+                return None;
+            }
+        };
+
+        while peek != TokenKind::BraceClose {
+            if let Some(tok) = self.lexer.peek() {
+                if tok.kind == TokenKind::Comma {
+                    self.lexer.next();
+                    if let Some(tok) = self.lexer.peek() {
+                        if tok.kind == TokenKind::BraceClose {
+                            break;
+                        }
+                    }
+                }
+            }
+            let tok = self.lexer.next();
+            let name = match tok {
+                Some(Token {
+                    kind: TokenKind::Identifier(val),
+                    span: _,
+                }) => val,
+                _ => todo!("{:?}", tok),
+            };
+
+            if !self.expect_peek(TokenKind::Colon) {
+                return None;
+            }
+
+            self.lexer.next();
+
+            let expr = self.parse_expression(LOWEST, true).unwrap();
+
+            attrs.push((name, expr));
+
+            peek = match self.lexer.peek() {
+                Some(peek) => peek.kind.clone(),
+                None => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::UnexpectedEOF,
+                        self.source.len() - 2,
+                        self.source.len() - 1,
+                    ));
+                    return None;
+                }
+            };
+        }
+
+        if !self.expect_peek(TokenKind::BraceClose) {
+            return None;
+        }
+
+        let end_token = self.lexer.next().unwrap();
+
+        Some(ExpressionNode {
+            expression: Expression::StructInitialisation(Rc::new(left.clone()), attrs),
             typed: AzulaType::Infer,
             span: Span {
                 start: left.span.start,
@@ -1048,7 +1194,7 @@ fn operator_from_token(tok: TokenKind) -> Option<Operator> {
     }
 }
 
-fn operator_precedence(tok: TokenKind) -> OperatorPrecedence {
+fn operator_precedence(tok: TokenKind, allow_struct_init: bool) -> OperatorPrecedence {
     match tok {
         TokenKind::Or | TokenKind::And => COMPARISON,
         TokenKind::Equal | TokenKind::NotEqual => EQUALS,
@@ -1057,7 +1203,9 @@ fn operator_precedence(tok: TokenKind) -> OperatorPrecedence {
         }
         TokenKind::Plus | TokenKind::Minus => SUM,
         TokenKind::Slash | TokenKind::Asterisk | TokenKind::Power | TokenKind::Modulo => PRODUCT,
+        TokenKind::BraceOpen if allow_struct_init => STRUCT_INIT,
         TokenKind::BracketOpen | TokenKind::SquareOpen => CALL,
+        TokenKind::Dot => ACCESS,
         _ => LOWEST,
     }
 }
@@ -1276,6 +1424,57 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_struct() {
+        // No attributes
+        let input = "struct Test { }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let struc = parser.parse_statement().unwrap();
+        assert!(matches!(struc, Statement::Struct { .. }));
+
+        // Single attribute
+        let input = "struct Test { test: int }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let struc = parser.parse_statement().unwrap();
+        assert!(matches!(struc, Statement::Struct { .. }));
+        if let Statement::Struct {
+            name,
+            attributes,
+            span,
+        } = struc
+        {
+            assert_eq!(name, "Test");
+            assert_eq!(attributes, vec![(AzulaType::Int, "test")]);
+        }
+
+        // Multiple attribute
+        let input = "struct Test { test: int, test1: &str, }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let struc = parser.parse_statement().unwrap();
+        assert!(matches!(struc, Statement::Struct { .. }));
+        if let Statement::Struct {
+            name,
+            attributes,
+            span,
+        } = struc
+        {
+            assert_eq!(name, "Test");
+            assert_eq!(
+                attributes,
+                vec![
+                    (AzulaType::Int, "test"),
+                    (AzulaType::Pointer(Rc::new(AzulaType::Str)), "test1")
+                ]
+            );
+        }
+    }
+
+    #[test]
     fn test_parse_if() {
         let input = "if x { return 5; }";
         let lexer: Lexer = input.into();
@@ -1302,7 +1501,9 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let func = parser.parse_if().unwrap();
+        let func = parser.parse_if();
+        println!("{:?}", parser.errors);
+        let func = func.unwrap();
         assert!(matches!(func, Statement::If(..)));
         if let Statement::If(expr, body, ..) = func {
             assert_eq!(
@@ -1464,7 +1665,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expr = parser.parse_expression(LOWEST).unwrap();
+        let expr = parser.parse_expression(LOWEST, true).unwrap();
         assert_eq!(
             expr,
             ExpressionNode {
@@ -1487,6 +1688,106 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_struct_access() {
+        // Basic int
+        let input = "test.test";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expr = parser.parse_expression(LOWEST, true).unwrap();
+        assert_eq!(
+            expr,
+            ExpressionNode {
+                expression: Expression::StructAccess(
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 0, end: 4 }
+                    }),
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 5, end: 9 }
+                    })
+                ),
+                typed: AzulaType::Infer,
+                span: Span { start: 0, end: 9 }
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_struct_init() {
+        // Basic struct init
+        let input = "Test { test: 5 }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expr = parser.parse_expression(LOWEST, true).unwrap();
+        assert_eq!(
+            expr,
+            ExpressionNode {
+                expression: Expression::StructInitialisation(
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("Test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 0, end: 4 }
+                    }),
+                    vec![(
+                        "test",
+                        ExpressionNode {
+                            expression: Expression::Integer(5),
+                            typed: AzulaType::Int,
+                            span: Span { start: 13, end: 14 },
+                        }
+                    )]
+                ),
+                typed: AzulaType::Infer,
+                span: Span { start: 0, end: 16 }
+            }
+        );
+
+        // Multiple args
+        let input = "Test { test: 5, test1: true }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expr = parser.parse_expression(LOWEST, true).unwrap();
+        assert_eq!(
+            expr,
+            ExpressionNode {
+                expression: Expression::StructInitialisation(
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("Test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 0, end: 4 }
+                    }),
+                    vec![
+                        (
+                            "test",
+                            ExpressionNode {
+                                expression: Expression::Integer(5),
+                                typed: AzulaType::Int,
+                                span: Span { start: 13, end: 14 },
+                            }
+                        ),
+                        (
+                            "test1",
+                            ExpressionNode {
+                                expression: Expression::Boolean(true),
+                                typed: AzulaType::Bool,
+                                span: Span { start: 23, end: 27 },
+                            }
+                        )
+                    ]
+                ),
+                typed: AzulaType::Infer,
+                span: Span { start: 0, end: 29 }
+            }
+        );
+    }
+
+    #[test]
     fn test_parse_typed_identifier() {
         // Basic int
         let input = "x: int";
@@ -1503,7 +1804,7 @@ mod tests {
         let mut parser = Parser::new(input, lexer);
 
         let (typ, name) = parser.parse_typed_identifier().unwrap();
-        assert_eq!(typ, AzulaType::Named("CustomStruct"));
+        assert_eq!(typ, AzulaType::Named("CustomStruct".to_string()));
         assert_eq!(name, "my_typed_identifier");
 
         // Non identifier for name
@@ -1601,7 +1902,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(matches!(expression.expression, Expression::Integer(123)));
     }
 
@@ -1611,14 +1912,14 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(matches!(expression.expression, Expression::Boolean(true)));
 
         let input = "false";
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(matches!(expression.expression, Expression::Boolean(false)));
     }
 
@@ -1629,7 +1930,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap().expression;
+        let expression = parser.parse_expression(LOWEST, true).unwrap().expression;
         assert_eq!(
             expression,
             Expression::Infix(
@@ -1652,7 +1953,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap().expression;
+        let expression = parser.parse_expression(LOWEST, true).unwrap().expression;
         assert_eq!(
             expression,
             Expression::Infix(
@@ -1699,7 +2000,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap().expression;
+        let expression = parser.parse_expression(LOWEST, true).unwrap().expression;
         assert_eq!(
             expression,
             Expression::Infix(
@@ -1734,7 +2035,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap().expression;
+        let expression = parser.parse_expression(LOWEST, true).unwrap().expression;
         assert_eq!(
             expression,
             Expression::Infix(
@@ -1759,7 +2060,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert_eq!(
             expression.expression,
             Expression::Array(vec![
@@ -1786,7 +2087,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert_eq!(expression.expression, Expression::Array(vec![]));
 
         // Array initialiser
@@ -1794,7 +2095,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert_eq!(
             expression.expression,
             Expression::Array(vec![
@@ -1833,7 +2134,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert_eq!(
             expression.expression,
             Expression::FunctionCall {
@@ -1850,7 +2151,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         println!("{:?}", parser.errors);
         assert!(parser.errors.is_empty());
         assert_eq!(
@@ -1894,7 +2195,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(parser.errors.is_empty());
         assert_eq!(
             expression.expression,
@@ -1912,7 +2213,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(parser.errors.is_empty());
         assert_eq!(
             expression.expression,
@@ -1930,7 +2231,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(parser.errors.is_empty());
         assert_eq!(expression.expression, Expression::Float(5.5));
 
@@ -1938,7 +2239,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(parser.errors.is_empty());
         assert_eq!(expression.expression, Expression::Float(3.14523));
 
@@ -1946,7 +2247,7 @@ mod tests {
         let lexer: Lexer = input.into();
         let mut parser = Parser::new(input, lexer);
 
-        let expression = parser.parse_expression(LOWEST).unwrap();
+        let expression = parser.parse_expression(LOWEST, true).unwrap();
         assert!(parser.errors.is_empty());
         assert_eq!(
             expression.expression,

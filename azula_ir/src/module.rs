@@ -11,6 +11,7 @@ pub struct Module<'a> {
     pub extern_functions: HashMap<&'a str, ExternFunction<'a>>,
     pub strings: Vec<String>,
     pub global_values: HashMap<String, GlobalValue>,
+    pub structs: HashMap<&'a str, Struct<'a>>,
 }
 
 impl<'a> Module<'a> {
@@ -30,6 +31,7 @@ impl<'a> Module<'a> {
             extern_functions,
             strings: vec![],
             global_values: HashMap::new(),
+            structs: HashMap::new(),
         }
     }
 
@@ -46,6 +48,10 @@ impl<'a> Module<'a> {
 
         Value::Global(self.strings.len() - 1)
     }
+
+    pub fn add_struct(&mut self, name: &'a str, struc: Struct<'a>) {
+        self.structs.insert(name, struc);
+    }
 }
 
 impl<'a> Display for Module<'a> {
@@ -54,6 +60,11 @@ impl<'a> Display for Module<'a> {
         writeln!(f, "Strings:").unwrap();
         for (index, string) in self.strings.iter().enumerate() {
             writeln!(f, "\t{}: {}", index, string).unwrap();
+        }
+
+        writeln!(f, "Structs:").unwrap();
+        for (name, struc) in self.structs.iter() {
+            writeln!(f, "\t{}: {:?}", name, struc).unwrap();
         }
 
         writeln!(f).unwrap();
@@ -355,6 +366,28 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
+    pub fn create_struct(&mut self, struc: String, values: Vec<Value>) -> Value {
+        self.add_instruction(Instruction::CreateStruct(struc, values, self.tmp_var_index));
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn access_struct_member(&mut self, struc: Value, index: usize) -> Value {
+        self.add_instruction(Instruction::AccessStructMember(
+            struc,
+            index,
+            self.tmp_var_index,
+        ));
+        self.tmp_var_index += 1;
+
+        Value::Local(self.tmp_var_index - 1)
+    }
+
+    pub fn store_struct_member(&mut self, struc: Value, index: usize, value: Value) {
+        self.add_instruction(Instruction::StoreStructMember(struc, index, value));
+    }
+
     fn add_instruction(&mut self, instruction: Instruction<'a>) {
         self.blocks
             .iter_mut()
@@ -386,4 +419,10 @@ pub enum GlobalValue {
     Bool(bool),
     String(usize),
     Array(Vec<GlobalValue>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Struct<'a> {
+    pub name: &'a str,
+    pub attributes: Vec<(AzulaType<'a>, &'a str)>,
 }

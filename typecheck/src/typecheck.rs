@@ -9,6 +9,7 @@ pub struct Typechecker<'a> {
 
     functions: HashMap<&'a str, FunctionDefinition<'a>>,
     globals: HashMap<String, VariableDefinition<'a>>,
+    structs: HashMap<String, StructDefinition<'a>>,
 
     pub errors: Vec<AzulaError>,
 }
@@ -18,6 +19,11 @@ struct FunctionDefinition<'a> {
     args: Vec<(AzulaType<'a>, &'a str)>,
     varargs: bool,
     returns: AzulaType<'a>,
+}
+
+struct StructDefinition<'a> {
+    name: &'a str,
+    attrs: Vec<(AzulaType<'a>, &'a str)>,
 }
 
 pub struct VariableDefinition<'a> {
@@ -48,6 +54,7 @@ impl<'a> Typechecker<'a> {
             ast: root,
             functions: HashMap::new(),
             globals: HashMap::new(),
+            structs: HashMap::new(),
             errors: vec![],
         }
     }
@@ -129,6 +136,25 @@ impl<'a> Typechecker<'a> {
             Statement::Function { .. } => self.typecheck_function(stmt),
             Statement::ExternFunction { .. } => Ok(stmt),
             Statement::Assign(..) => self.typecheck_global_assign(stmt),
+            Statement::Struct {
+                name,
+                attributes,
+                span,
+            } => {
+                self.structs.insert(
+                    name.to_string(),
+                    StructDefinition {
+                        name,
+                        attrs: attributes.clone(),
+                    },
+                );
+
+                Ok(Statement::Struct {
+                    name: name,
+                    attributes: attributes,
+                    span: span,
+                })
+            }
             _ => unreachable!(),
         }
     }
@@ -382,6 +408,7 @@ impl<'a> Typechecker<'a> {
                     }
                 },
                 Expression::ArrayAccess(..) => {}
+                Expression::StructAccess(..) => {}
                 _ => {
                     unreachable!("{:?}", var.expression)
                 }
@@ -573,18 +600,20 @@ impl<'a> Typechecker<'a> {
                 }
                 .clone();
 
+                let mut new_args = vec![];
                 for arg in args.clone() {
-                    match self.typecheck_expression(arg, env) {
+                    let (arg, _) = match self.typecheck_expression(arg, env) {
+                        Ok((arg, typ)) => (arg, typ),
                         Err(e) => return Err(e),
-                        _ => {}
-                    }
+                    };
+                    new_args.push(arg);
                 }
 
                 return Ok((
                     ExpressionNode {
                         expression: Expression::FunctionCall {
                             function: function.clone(),
-                            args: args,
+                            args: new_args,
                         },
                         typed: return_type.clone(),
                         span: expr.span,
@@ -720,6 +749,87 @@ impl<'a> Typechecker<'a> {
                         span: expr.span,
                     },
                     return_typ,
+                ));
+            }
+            Expression::StructInitialisation(struc, attrs) => {
+                let name = match &struc.clone().expression {
+                    Expression::Identifier(s) => s.clone(),
+                    _ => unreachable!(),
+                };
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::StructInitialisation(struc, attrs),
+                        typed: AzulaType::Named(name.clone()),
+                        span: expr.span,
+                    },
+                    AzulaType::Named(name.clone()),
+                ));
+            }
+            Expression::StructAccess(struc, access) => {
+                let (struc, struc_type) =
+                    match self.typecheck_expression(struc.deref().clone(), env) {
+                        Ok(x) => x,
+                        Err(e) => return Err(e),
+                    };
+
+                let struc_name = match struc_type {
+                    AzulaType::Named(s) => s,
+                    _ => {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::AccessNonStruct,
+                            struc.span.start,
+                            struc.span.end,
+                        ));
+                        return Err("accessing non-struct".to_string());
+                    }
+                };
+
+                let struct_type = if let Some(struct_type) = self.structs.get(&struc_name) {
+                    struct_type
+                } else {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::UnknownStruct(struc_name),
+                        struc.span.start,
+                        struc.span.end,
+                    ));
+                    return Err("Struct not found".to_string());
+                };
+
+                let member_name = match &access.expression {
+                    Expression::Identifier(s) => s,
+                    _ => {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::AccessNonStruct,
+                            access.span.start,
+                            access.span.end,
+                        ));
+                        return Err("accessing non-struct".to_string());
+                    }
+                };
+
+                let typ = match struct_type
+                    .attrs
+                    .iter()
+                    .find(|(_, name)| name.to_string() == member_name.clone())
+                {
+                    Some((typ, _)) => typ,
+                    _ => {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::UnknownStructMember(member_name.clone(), struc_name),
+                            access.span.start,
+                            access.span.end,
+                        ));
+                        return Err("unknown struct member".to_string());
+                    }
+                };
+
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::StructAccess(Rc::new(struc), access),
+                        typed: typ.clone(),
+                        span: expr.span,
+                    },
+                    typ.clone(),
                 ));
             }
         }
@@ -1255,5 +1365,50 @@ mod tests {
             typechecker.errors[0].error_type,
             ErrorType::MismatchedTypes(..)
         ));
+    }
+
+    #[test]
+    fn test_struct_access_expression() {
+        // Int
+        let array = ExpressionNode {
+            expression: Expression::StructAccess(
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("x".to_string()),
+                    typed: AzulaType::Infer,
+                    span: Span { start: 0, end: 1 },
+                }),
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("test".to_string()),
+                    typed: AzulaType::Infer,
+                    span: Span { start: 0, end: 1 },
+                }),
+            ),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 0 },
+        };
+
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        typechecker.structs.insert(
+            "Test".to_string(),
+            StructDefinition {
+                name: "Test",
+                attrs: vec![(AzulaType::Int, "test")],
+            },
+        );
+        let mut environment = Environment::new();
+        environment.add_variable(
+            "x".to_string(),
+            VariableDefinition {
+                name: "x".to_string(),
+                mutable: false,
+                typ: AzulaType::Named("Test".to_string()),
+            },
+        );
+        let (expr, typ) = typechecker
+            .typecheck_expression(array, &environment)
+            .unwrap();
+
+        assert_eq!(typ, AzulaType::Int);
+        assert_eq!(expr.typed, AzulaType::Int);
     }
 }

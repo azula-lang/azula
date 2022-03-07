@@ -11,6 +11,7 @@ use azula_type::prelude::AzulaType;
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::{Linkage, Module as LLVMModule};
 use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine, TargetTriple};
+use inkwell::types::StructType;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue};
 use inkwell::{builder::Builder, context::Context};
@@ -24,6 +25,7 @@ pub struct LLVMCodegen<'ctx> {
     strings: HashMap<usize, BasicValueEnum<'ctx>>,
     string_size: HashMap<usize, usize>,
     globals: HashMap<String, BasicValueEnum<'ctx>>,
+    structs: HashMap<String, StructType<'ctx>>,
 
     target: Option<String>,
     opt_level: OptimizationLevel,
@@ -59,20 +61,22 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
             strings: HashMap::new(),
             string_size: HashMap::new(),
             globals: HashMap::new(),
+            structs: HashMap::new(),
             target,
             opt_level,
         };
+
+        codegen.generate_structs(&module);
 
         for (name, extern_func) in &module.extern_functions {
             let args: Vec<_> = extern_func
                 .arguments
                 .iter()
-                .map(|arg| azula_type_to_llvm_basic_type(&context, arg.clone()).into())
+                .map(|arg| codegen.azula_type_to_llvm_basic_type(arg.clone()).into())
                 .collect();
             codegen.module.add_function(
                 name,
-                azula_type_to_function_llvm_type_with_varargs(
-                    &context,
+                codegen.azula_type_to_function_llvm_type_with_varargs(
                     extern_func.returns.clone(),
                     &args,
                     extern_func.varargs,
@@ -102,15 +106,12 @@ impl<'ctx> Backend<'ctx> for LLVMCodegen<'ctx> {
             }
             codegen.module.add_function(
                 name,
-                azula_type_to_function_llvm_type(
-                    &codegen.context,
+                codegen.azula_type_to_function_llvm_type(
                     func.returns.clone(),
                     &func
                         .arguments
                         .iter()
-                        .map(|(_, typ)| {
-                            azula_type_to_llvm_basic_type(&codegen.context, typ.clone()).into()
-                        })
+                        .map(|(_, typ)| codegen.azula_type_to_llvm_basic_type(typ.clone()).into())
                         .collect::<Vec<_>>(),
                 ),
                 linkage,
@@ -244,6 +245,18 @@ impl<'a> LLVMCodegen<'a> {
         }
     }
 
+    fn generate_structs(&mut self, module: &Module<'a>) {
+        for (i, str) in &module.structs {
+            let args: Vec<_> = str
+                .attributes
+                .iter()
+                .map(|(arg, _)| self.azula_type_to_llvm_basic_type(arg.clone()))
+                .collect();
+            let struc = self.context.struct_type(&args, false);
+            self.structs.insert(i.to_string(), struc);
+        }
+    }
+
     fn codegen_instruction(
         &self,
         instruction: Instruction<'a>,
@@ -279,10 +292,9 @@ impl<'a> LLVMCodegen<'a> {
                         let alloca = if locals.variables.contains_key(&name) {
                             locals.variables.get(&name).unwrap().into_pointer_value()
                         } else {
-                            let alloca = self.builder.build_alloca(
-                                azula_type_to_llvm_basic_type(self.context, typ),
-                                "alloca",
-                            );
+                            let alloca = self
+                                .builder
+                                .build_alloca(self.azula_type_to_llvm_basic_type(typ), "alloca");
                             locals.variables.insert(name, alloca.as_basic_value_enum());
 
                             alloca
@@ -300,7 +312,7 @@ impl<'a> LLVMCodegen<'a> {
                 } else {
                     let alloca = self
                         .builder
-                        .build_alloca(azula_type_to_llvm_basic_type(self.context, typ), "alloca");
+                        .build_alloca(self.azula_type_to_llvm_basic_type(typ), "alloca");
                     locals.variables.insert(name, alloca.as_basic_value_enum());
 
                     alloca
@@ -623,7 +635,8 @@ impl<'a> LLVMCodegen<'a> {
             }
             Instruction::CreateArray(typ, size, dest) => {
                 let alloca = self.builder.build_alloca(
-                    azula_type_to_llvm_basic_type(self.context, typ).array_type(size as u32),
+                    self.azula_type_to_llvm_basic_type(typ)
+                        .array_type(size as u32),
                     "array",
                 );
 
@@ -670,6 +683,79 @@ impl<'a> LLVMCodegen<'a> {
                 let result = self.builder.build_load(ptr, "access");
 
                 locals.store(dest, result.as_basic_value_enum());
+            }
+            Instruction::StoreStructMember(struc, index, val) => {
+                let struc = locals.load(value_to_local(struc)).into_pointer_value();
+
+                let ptr = unsafe {
+                    self.builder.build_in_bounds_gep(
+                        struc,
+                        &[
+                            self.context.i32_type().const_int(0, false),
+                            self.context.i32_type().const_int(index as u64, false),
+                        ],
+                        "gep",
+                    )
+                };
+
+                let val = match val {
+                    Value::Local(ptr) => locals.load(ptr),
+                    Value::LiteralInteger(_) => todo!(),
+                    Value::LiteralBoolean(_) => todo!(),
+                    Value::Global(v) => *self.strings.get(&v).unwrap(),
+                };
+
+                self.builder.build_store(ptr, val);
+            }
+            Instruction::CreateStruct(struc, values, dest) => {
+                let struc = self.structs.get(&struc).unwrap();
+
+                let vals: Vec<_> = values
+                    .iter()
+                    .map(|val| match val {
+                        Value::Local(ptr) => locals.load(*ptr),
+                        Value::LiteralInteger(_) => todo!(),
+                        Value::LiteralBoolean(_) => todo!(),
+                        Value::Global(v) => *self.strings.get(&v).unwrap(),
+                    })
+                    .collect();
+
+                // self.builder.build_insert_value(agg, value, index, name)
+
+                let val = struc.const_named_struct(&[]);
+
+                let mut agg = val.as_basic_value_enum().into_struct_value();
+                for (index, arg) in vals.iter().enumerate() {
+                    agg = self
+                        .builder
+                        .build_insert_value(agg, arg.as_basic_value_enum(), index as u32, "insert")
+                        .unwrap()
+                        .as_basic_value_enum()
+                        .into_struct_value();
+                }
+
+                let alloca = self
+                    .builder
+                    .build_alloca(struc.as_basic_type_enum(), "alloca");
+                self.builder.build_store(alloca, agg);
+                locals.store(dest, alloca.as_basic_value_enum());
+            }
+            Instruction::AccessStructMember(struc, index, dest) => {
+                let struc = locals.load(value_to_local(struc)).into_pointer_value();
+
+                let ptr = unsafe {
+                    self.builder.build_in_bounds_gep(
+                        struc,
+                        &[
+                            self.context.i32_type().const_int(0, false),
+                            self.context.i32_type().const_int(index as u64, false),
+                        ],
+                        "gep",
+                    )
+                };
+
+                let val = self.builder.build_load(ptr, "load");
+                locals.store(dest, val.as_basic_value_enum());
             }
         };
     }
@@ -843,6 +929,171 @@ impl<'a> LLVMCodegen<'a> {
             inkwell::targets::CodeModel::Default,
         )
     }
+
+    fn azula_type_to_llvm_basic_type(&self, t: AzulaType<'a>) -> BasicTypeEnum<'a> {
+        match t {
+            AzulaType::Int => self.context.i64_type().as_basic_type_enum(),
+            AzulaType::SizedSignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            },
+            AzulaType::SizedUnsignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            },
+            AzulaType::Str => self.context.i8_type().as_basic_type_enum(),
+            AzulaType::Float => self.context.f64_type().as_basic_type_enum(),
+            AzulaType::SizedFloat(size) => match size {
+                16 => self.context.f16_type().as_basic_type_enum(),
+                32 => self.context.f32_type().as_basic_type_enum(),
+                64 => self.context.f64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            },
+            AzulaType::Bool => self.context.bool_type().as_basic_type_enum(),
+            AzulaType::Void => todo!(),
+            AzulaType::Pointer(nested) => {
+                let typ = self.azula_type_to_llvm_basic_type(nested.deref().clone());
+
+                typ.ptr_type(AddressSpace::Generic).as_basic_type_enum()
+            }
+            AzulaType::Infer => unreachable!(),
+            AzulaType::Named(name) => self
+                .structs
+                .get(&name.to_string())
+                .unwrap()
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum(),
+            AzulaType::UnknownType(_) => todo!(),
+            AzulaType::Array(typ, size) => {
+                let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
+
+                typ.array_type(size.unwrap() as u32)
+                    .ptr_type(AddressSpace::Generic)
+                    .as_basic_type_enum()
+            }
+        }
+    }
+
+    fn azula_type_to_function_llvm_type(
+        &self,
+        t: AzulaType<'a>,
+        args: &[BasicMetadataTypeEnum<'a>],
+    ) -> FunctionType<'a> {
+        match t {
+            AzulaType::Int => self.context.i64_type().fn_type(args, false),
+            AzulaType::SizedSignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, false),
+            AzulaType::SizedUnsignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, false),
+            AzulaType::Str => todo!(),
+            AzulaType::Float => self.context.f64_type().fn_type(args, false),
+            AzulaType::SizedFloat(size) => match size {
+                16 => self.context.f16_type().as_basic_type_enum(),
+                32 => self.context.f32_type().as_basic_type_enum(),
+                64 => self.context.f64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, false),
+            AzulaType::Bool => self.context.bool_type().fn_type(args, false),
+            AzulaType::Void => self.context.void_type().fn_type(args, false),
+            AzulaType::Pointer(nested) => {
+                let typ = self.azula_type_to_llvm_basic_type(nested.deref().clone());
+
+                typ.ptr_type(AddressSpace::Generic).fn_type(args, false)
+            }
+            AzulaType::Infer => todo!(),
+            AzulaType::Named(name) => self
+                .structs
+                .get(&name.to_string())
+                .unwrap()
+                .ptr_type(AddressSpace::Generic)
+                .fn_type(args, false),
+            AzulaType::UnknownType(_) => todo!(),
+            AzulaType::Array(typ, size) => {
+                let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
+
+                typ.array_type(size.unwrap() as u32)
+                    .ptr_type(AddressSpace::Generic)
+                    .fn_type(args, false)
+            }
+        }
+    }
+
+    fn azula_type_to_function_llvm_type_with_varargs(
+        &self,
+        t: AzulaType<'a>,
+        args: &[BasicMetadataTypeEnum<'a>],
+        varargs: bool,
+    ) -> FunctionType<'a> {
+        match t {
+            AzulaType::Int => self.context.i64_type().fn_type(args, varargs),
+            AzulaType::SizedSignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, true),
+            AzulaType::SizedUnsignedInt(size) => match size {
+                8 => self.context.i8_type().as_basic_type_enum(),
+                16 => self.context.i16_type().as_basic_type_enum(),
+                32 => self.context.i32_type().as_basic_type_enum(),
+                64 => self.context.i64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, true),
+            AzulaType::Str => todo!(),
+            AzulaType::Float => self.context.f64_type().fn_type(args, varargs),
+            AzulaType::SizedFloat(size) => match size {
+                16 => self.context.f16_type().as_basic_type_enum(),
+                32 => self.context.f32_type().as_basic_type_enum(),
+                64 => self.context.f64_type().as_basic_type_enum(),
+                _ => unreachable!(),
+            }
+            .fn_type(args, false),
+            AzulaType::Bool => self.context.bool_type().fn_type(args, varargs),
+            AzulaType::Void => self.context.void_type().fn_type(args, varargs),
+            AzulaType::Pointer(nested) => {
+                let typ = self.azula_type_to_llvm_basic_type(nested.deref().clone());
+
+                typ.ptr_type(AddressSpace::Generic).fn_type(args, varargs)
+            }
+            AzulaType::Infer => todo!(),
+            AzulaType::Named(name) => self
+                .structs
+                .get(&name.to_string())
+                .unwrap()
+                .ptr_type(AddressSpace::Generic)
+                .fn_type(args, false),
+            AzulaType::UnknownType(_) => todo!(),
+            AzulaType::Array(typ, size) => {
+                let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
+
+                typ.array_type(size.unwrap() as u32)
+                    .ptr_type(AddressSpace::Generic)
+                    .fn_type(args, false)
+            }
+        }
+    }
 }
 
 impl<'ctx> FunctionLocals<'ctx> {
@@ -860,93 +1111,6 @@ impl<'ctx> FunctionLocals<'ctx> {
 
     pub fn load(&self, dest: usize) -> BasicValueEnum<'ctx> {
         self.registers.get(&dest).unwrap().clone()
-    }
-}
-
-fn azula_type_to_llvm_basic_type<'ctx>(
-    context: &'ctx Context,
-    t: AzulaType,
-) -> BasicTypeEnum<'ctx> {
-    match t {
-        AzulaType::Int => context.i64_type().as_basic_type_enum(),
-        AzulaType::Str => context.i8_type().as_basic_type_enum(),
-        AzulaType::Float => context.f64_type().as_basic_type_enum(),
-        AzulaType::Bool => context.bool_type().as_basic_type_enum(),
-        AzulaType::Void => todo!(),
-        AzulaType::Pointer(nested) => {
-            let typ = azula_type_to_llvm_basic_type(context, nested.deref().clone());
-
-            typ.ptr_type(AddressSpace::Generic).as_basic_type_enum()
-        }
-        AzulaType::Infer => unreachable!(),
-        AzulaType::Named(_) => todo!(),
-        AzulaType::UnknownType(_) => todo!(),
-        AzulaType::Array(typ, size) => {
-            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
-
-            typ.array_type(size.unwrap() as u32)
-                .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum()
-        }
-    }
-}
-
-fn azula_type_to_function_llvm_type<'ctx>(
-    context: &'ctx Context,
-    t: AzulaType,
-    args: &[BasicMetadataTypeEnum<'ctx>],
-) -> FunctionType<'ctx> {
-    match t {
-        AzulaType::Int => context.i64_type().fn_type(args, false),
-        AzulaType::Str => todo!(),
-        AzulaType::Float => context.f64_type().fn_type(args, false),
-        AzulaType::Bool => context.bool_type().fn_type(args, false),
-        AzulaType::Void => context.void_type().fn_type(args, false),
-        AzulaType::Pointer(nested) => {
-            let typ = azula_type_to_llvm_basic_type(context, nested.deref().clone());
-
-            typ.ptr_type(AddressSpace::Generic).fn_type(args, false)
-        }
-        AzulaType::Infer => todo!(),
-        AzulaType::Named(_) => todo!(),
-        AzulaType::UnknownType(_) => todo!(),
-        AzulaType::Array(typ, size) => {
-            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
-
-            typ.array_type(size.unwrap() as u32)
-                .ptr_type(AddressSpace::Generic)
-                .fn_type(args, false)
-        }
-    }
-}
-
-fn azula_type_to_function_llvm_type_with_varargs<'ctx>(
-    context: &'ctx Context,
-    t: AzulaType,
-    args: &[BasicMetadataTypeEnum<'ctx>],
-    varargs: bool,
-) -> FunctionType<'ctx> {
-    match t {
-        AzulaType::Int => context.i64_type().fn_type(args, varargs),
-        AzulaType::Str => todo!(),
-        AzulaType::Float => context.f64_type().fn_type(args, varargs),
-        AzulaType::Bool => context.bool_type().fn_type(args, varargs),
-        AzulaType::Void => context.void_type().fn_type(args, varargs),
-        AzulaType::Pointer(nested) => {
-            let typ = azula_type_to_llvm_basic_type(context, nested.deref().clone());
-
-            typ.ptr_type(AddressSpace::Generic).fn_type(args, varargs)
-        }
-        AzulaType::Infer => todo!(),
-        AzulaType::Named(_) => todo!(),
-        AzulaType::UnknownType(_) => todo!(),
-        AzulaType::Array(typ, size) => {
-            let typ = azula_type_to_llvm_basic_type(context, typ.deref().clone());
-
-            typ.array_type(size.unwrap() as u32)
-                .ptr_type(AddressSpace::Generic)
-                .fn_type(args, false)
-        }
     }
 }
 

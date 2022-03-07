@@ -24,6 +24,9 @@ enum Commands {
 
         #[clap(long)]
         release: bool,
+
+        #[clap(long)]
+        print_azula_ir: bool,
     },
     Build {
         file: String,
@@ -36,6 +39,9 @@ enum Commands {
 
         #[clap(long)]
         release: bool,
+
+        #[clap(long)]
+        print_azula_ir: bool,
     },
 }
 
@@ -43,8 +49,12 @@ pub fn run() {
     let args = AzulaCLI::parse();
 
     match &args.command {
-        Commands::Run { file, release } => {
-            let result = build(file, ".build/", None, false, *release);
+        Commands::Run {
+            file,
+            release,
+            print_azula_ir,
+        } => {
+            let result = build(file, ".build/", None, false, *release, *print_azula_ir);
 
             Command::new(format!("./.build/{}", result))
                 .spawn()
@@ -57,8 +67,16 @@ pub fn run() {
             target,
             emit_llvm,
             release,
+            print_azula_ir,
         } => {
-            build(file, "", target.as_ref(), *emit_llvm, *release);
+            build(
+                file,
+                "",
+                target.as_ref(),
+                *emit_llvm,
+                *release,
+                *print_azula_ir,
+            );
         }
     }
 }
@@ -69,6 +87,7 @@ fn build<'a>(
     target: Option<&String>,
     emit_llvm: bool,
     release: bool,
+    print_azula_ir: bool,
 ) -> &'a str {
     let input = fs::read_to_string(name).unwrap();
     let lexer: Lexer = input.as_str().into();
@@ -100,7 +119,9 @@ fn build<'a>(
     codegen.codegen();
     codegen.insert_implicit_return();
 
-    println!("{}", codegen.module);
+    if print_azula_ir {
+        println!("{}", codegen.module);
+    }
 
     LLVMCodegen::codegen(
         name,
