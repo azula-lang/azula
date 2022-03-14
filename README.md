@@ -34,6 +34,7 @@ Short term goals:
 - [x] Structures
 - [ ] Methods
 - [ ] Multi-file projects
+- [ ] Beginnings of a standard library
 
 ### Example Code
 
