@@ -736,8 +736,8 @@ impl<'a> Typechecker<'a> {
                     match array_typ {
                         AzulaType::Array(nested, _) => nested.deref().clone(),
                         AzulaType::Pointer(nested) => match nested.deref().clone() {
-                            AzulaType::Str => AzulaType::Int,
-                            _ => unreachable!(),
+                            AzulaType::Str => AzulaType::SizedSignedInt(8),
+                            _ => nested.deref().clone(),
                         },
                         _ => unreachable!(),
                     }

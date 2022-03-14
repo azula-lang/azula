@@ -129,7 +129,7 @@ impl<'a> Codegen<'a> {
             Statement::Assign(..) => self.codegen_assign(stmt, func),
             Statement::Return(..) => self.codegen_return(stmt, func),
             Statement::ExpressionStatement(expr, ..) => {
-                self.codegen_expr(expr.clone(), func);
+                self.codegen_expr(expr.clone(), func, true);
             }
             Statement::If(..) => self.codegen_if(stmt, func),
             Statement::While(..) => self.codegen_while(stmt, func),
@@ -140,7 +140,7 @@ impl<'a> Codegen<'a> {
 
     pub fn codegen_assign(&mut self, stmt: Statement<'a>, func: &mut Function<'a>) {
         if let Statement::Assign(_, name, _, expr, _) = stmt {
-            let value = self.codegen_expr(expr.clone(), func);
+            let value = self.codegen_expr(expr.clone(), func, true);
             func.store(name.clone(), value, expr.typed.clone());
             func.variables.insert(name, expr.typed);
         } else {
@@ -150,16 +150,16 @@ impl<'a> Codegen<'a> {
 
     pub fn codegen_reassign(&mut self, stmt: Statement<'a>, func: &mut Function<'a>) {
         if let Statement::Reassign(var, val, _) = stmt {
-            let value = self.codegen_expr(val.clone(), func);
+            let value = self.codegen_expr(val.clone(), func, true);
             match var.expression {
                 Expression::Identifier(v) => func.store(v.clone(), value, val.typed.clone()),
                 Expression::ArrayAccess(array, index) => {
-                    let array = self.codegen_expr(array.deref().clone(), func);
-                    let index = self.codegen_expr(index.deref().clone(), func);
+                    let array = self.codegen_expr(array.deref().clone(), func, true);
+                    let index = self.codegen_expr(index.deref().clone(), func, true);
                     func.store_element(array.clone(), index, value);
                 }
                 Expression::StructAccess(struc, member) => {
-                    let struc_val = self.codegen_expr(struc.deref().clone(), func);
+                    let struc_val = self.codegen_expr(struc.deref().clone(), func, true);
                     let member_name = match &member.expression {
                         Expression::Identifier(v) => v,
                         _ => unreachable!(),
@@ -194,7 +194,7 @@ impl<'a> Codegen<'a> {
         if let Statement::Return(val, _) = stmt {
             match val {
                 Some(expr) => {
-                    let value = self.codegen_expr(expr, func);
+                    let value = self.codegen_expr(expr, func, true);
                     func.ret(Some(value));
                 }
                 None => func.ret(None),
@@ -206,7 +206,7 @@ impl<'a> Codegen<'a> {
 
     pub fn codegen_if(&mut self, stmt: Statement<'a>, func: &mut Function<'a>) {
         if let Statement::If(cond, body, ..) = stmt {
-            let cond = self.codegen_expr(cond, func);
+            let cond = self.codegen_expr(cond, func, true);
 
             let true_name = format!("true-{}", func.if_block_index);
             let end_name = format!("end-{}", func.if_block_index);
@@ -249,7 +249,7 @@ impl<'a> Codegen<'a> {
             func.jump(eval_name.clone());
             func.blocks.push((eval_name.clone(), Block::new()));
             func.current_block = eval_name.clone();
-            let cond_val = self.codegen_expr(cond.clone(), func);
+            let cond_val = self.codegen_expr(cond.clone(), func, true);
             func.jcond(cond_val, true_name.clone(), end_name.clone());
 
             func.blocks.push((true_name.clone(), Block::new()));
@@ -267,12 +267,17 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn codegen_expr(&mut self, expr: ExpressionNode<'a>, func: &mut Function<'a>) -> Value {
+    pub fn codegen_expr(
+        &mut self,
+        expr: ExpressionNode<'a>,
+        func: &mut Function<'a>,
+        resolve_pointer: bool,
+    ) -> Value {
         match expr.expression {
-            Expression::Infix(..) => self.codegen_infix(expr, func),
+            Expression::Infix(..) => self.codegen_infix(expr, func, resolve_pointer),
             Expression::Integer(val) => func.const_int(val),
             Expression::Float(val) => func.const_float(val),
-            Expression::Identifier(name) => {
+            Expression::Identifier(name) if resolve_pointer => {
                 if let Some((index, _)) = func
                     .arguments
                     .iter()
@@ -295,6 +300,7 @@ impl<'a> Codegen<'a> {
                     unreachable!()
                 }
             }
+            Expression::Identifier(name) => func.ptr(name),
             Expression::String(val) => self.module.add_string(val),
             Expression::Boolean(val) => {
                 if val {
@@ -318,24 +324,28 @@ impl<'a> Codegen<'a> {
 
                 let args = args
                     .iter()
-                    .map(|arg| self.codegen_expr(arg.clone(), func))
+                    .map(|arg| self.codegen_expr(arg.clone(), func, true))
                     .collect();
                 func.function_call(name.clone(), args)
             }
             Expression::Not(expr) => {
-                let val = self.codegen_expr(expr.as_ref().clone(), func);
+                let val = self.codegen_expr(expr.as_ref().clone(), func, true);
 
                 func.not(val)
             }
-            Expression::Pointer(expr) => match &expr.expression {
-                Expression::Identifier(ident) => func.ptr(ident.clone()),
-                _ => unreachable!(),
-            },
+            Expression::Pointer(expr) => {
+                //     match &expr.expression {
+                //     Expression::Identifier(ident) => func.ptr(ident.clone()),
+                //     _ => unreachable!(),
+                // }
+
+                self.codegen_expr(expr.deref().clone(), func, false)
+            }
             Expression::Array(vals) => {
                 let array = func.create_array(vals[0].typed.clone(), vals.len());
 
                 for (index, val) in vals.iter().enumerate() {
-                    let gened = self.codegen_expr(val.clone(), func);
+                    let gened = self.codegen_expr(val.clone(), func, true);
                     let index = func.const_int(index as i64);
                     func.store_element(array.clone(), index, gened);
                 }
@@ -343,15 +353,15 @@ impl<'a> Codegen<'a> {
                 return array;
             }
             Expression::ArrayAccess(array, index) => {
-                let array = self.codegen_expr(array.deref().clone(), func);
-                let index = self.codegen_expr(index.deref().clone(), func);
+                let array = self.codegen_expr(array.deref().clone(), func, true);
+                let index = self.codegen_expr(index.deref().clone(), func, true);
 
                 func.access_element(array, index)
             }
             Expression::StructInitialisation(struc, vals) => {
                 let values: Vec<_> = vals
                     .iter()
-                    .map(|(_, v)| self.codegen_expr(v.deref().clone(), func))
+                    .map(|(_, v)| self.codegen_expr(v.deref().clone(), func, true))
                     .collect();
 
                 let name = match &struc.expression {
@@ -362,7 +372,7 @@ impl<'a> Codegen<'a> {
                 func.create_struct(name.clone(), values)
             }
             Expression::StructAccess(struc, member) => {
-                let struct_value = self.codegen_expr(struc.deref().clone(), func);
+                let struct_value = self.codegen_expr(struc.deref().clone(), func, true);
 
                 let member_name = match &member.expression {
                     Expression::Identifier(s) => s.clone(),
@@ -387,95 +397,100 @@ impl<'a> Codegen<'a> {
                     .map(|(index, _)| index)
                     .unwrap();
 
-                func.access_struct_member(struct_value, index)
+                func.access_struct_member(struct_value, index, resolve_pointer)
             }
         }
     }
 
-    pub fn codegen_infix(&mut self, expr: ExpressionNode<'a>, func: &mut Function<'a>) -> Value {
+    pub fn codegen_infix(
+        &mut self,
+        expr: ExpressionNode<'a>,
+        func: &mut Function<'a>,
+        resolve_pointer: bool,
+    ) -> Value {
         if let Expression::Infix(val1, op, val2) = expr.expression {
             match op {
                 Operator::Add => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.add(val1, val2)
                 }
                 Operator::Sub => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.sub(val1, val2)
                 }
                 Operator::Mul => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.mul(val1, val2)
                 }
                 Operator::Div => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.div(val1, val2)
                 }
                 Operator::Mod => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.modulus(val1, val2)
                 }
                 Operator::Power => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.pow(val1, val2)
                 }
                 Operator::Or => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.or(val1, val2)
                 }
                 Operator::And => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.and(val1, val2)
                 }
                 Operator::Eq => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.eq(val1, val2)
                 }
                 Operator::Neq => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.neq(val1, val2)
                 }
                 Operator::Lt => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.lt(val1, val2)
                 }
                 Operator::Lte => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.lte(val1, val2)
                 }
                 Operator::Gt => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.gt(val1, val2)
                 }
                 Operator::Gte => {
-                    let val1 = self.codegen_expr(val1.as_ref().clone(), func);
-                    let val2 = self.codegen_expr(val2.as_ref().clone(), func);
+                    let val1 = self.codegen_expr(val1.as_ref().clone(), func, true);
+                    let val2 = self.codegen_expr(val2.as_ref().clone(), func, true);
 
                     func.gte(val1, val2)
                 }
@@ -528,6 +543,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -543,6 +559,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -558,6 +575,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -611,6 +629,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -642,6 +661,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -673,6 +693,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -704,6 +725,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,
@@ -735,6 +757,7 @@ mod tests {
                 span: Span { start: 0, end: 1 },
             },
             &mut func,
+            true,
         );
         assert_eq!(
             func.blocks[0].1.instructions,

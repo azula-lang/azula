@@ -44,10 +44,7 @@ impl<'a> AzulaType<'a> {
     pub fn is_indexable(&self) -> bool {
         match self {
             AzulaType::Array(..) => true,
-            AzulaType::Pointer(nested) => match nested.deref().clone() {
-                AzulaType::Str => true,
-                _ => false,
-            },
+            AzulaType::Pointer(..) => true,
             _ => false,
         }
     }

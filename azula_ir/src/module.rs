@@ -373,11 +373,12 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
-    pub fn access_struct_member(&mut self, struc: Value, index: usize) -> Value {
+    pub fn access_struct_member(&mut self, struc: Value, index: usize, resolve: bool) -> Value {
         self.add_instruction(Instruction::AccessStructMember(
             struc,
             index,
             self.tmp_var_index,
+            resolve,
         ));
         self.tmp_var_index += 1;
 

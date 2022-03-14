@@ -31,7 +31,7 @@ Short term goals:
 - [x] Hooking into C standard library functions
 - [x] Arrays
 - [x] Loops
-- [ ] Structures
+- [x] Structures
 - [ ] Methods
 - [ ] Multi-file projects
 

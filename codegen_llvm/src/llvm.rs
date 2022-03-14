@@ -772,7 +772,7 @@ impl<'a> LLVMCodegen<'a> {
 
                 locals.store(dest, agg.as_basic_value_enum());
             }
-            Instruction::AccessStructMember(struc, index, dest) => {
+            Instruction::AccessStructMember(struc, index, dest, resolve) => {
                 let struc = locals.load(value_to_local(struc));
 
                 if struc.is_struct_value() {
@@ -794,8 +794,12 @@ impl<'a> LLVMCodegen<'a> {
                         )
                     };
 
-                    let val = self.builder.build_load(ptr, "load");
-                    locals.store(dest, val.as_basic_value_enum());
+                    if resolve {
+                        let val = self.builder.build_load(ptr, "load");
+                        locals.store(dest, val.as_basic_value_enum());
+                    } else {
+                        locals.store(dest, ptr.as_basic_value_enum());
+                    }
                 }
             }
         };

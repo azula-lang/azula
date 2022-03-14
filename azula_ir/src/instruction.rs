@@ -38,7 +38,7 @@ pub enum Instruction<'a> {
     AccessElement(Value, Value, usize),
     CreateStruct(String, Vec<Value>, usize),
     StoreStructMember(Value, usize, Value),
-    AccessStructMember(Value, usize, usize),
+    AccessStructMember(Value, usize, usize, bool),
 }
 
 impl<'a> Display for Instruction<'a> {
@@ -107,8 +107,12 @@ impl<'a> Display for Instruction<'a> {
             Instruction::StoreStructMember(struc, index, val) => {
                 write!(f, "store_struct_member %{}.{} %{}", struc, index, val)
             }
-            Instruction::AccessStructMember(struc, index, dest) => {
-                write!(f, "%{}: access_struct_member {}.{}", dest, struc, index)
+            Instruction::AccessStructMember(struc, index, dest, resolve) => {
+                write!(
+                    f,
+                    "%{}: access_struct_member {}.{} {}",
+                    dest, struc, index, resolve
+                )
             }
         }
     }
