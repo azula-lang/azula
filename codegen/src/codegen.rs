@@ -166,6 +166,10 @@ impl<'a> Codegen<'a> {
                     };
                     let struct_name = match &struc.typed {
                         AzulaType::Named(name) => name.clone(),
+                        AzulaType::Pointer(nested) => match nested.deref().clone() {
+                            AzulaType::Named(name) => name.clone(),
+                            _ => unreachable!("{:?}", struc.typed),
+                        },
                         _ => unreachable!("{:?}", struc.typed),
                     };
 
@@ -367,6 +371,10 @@ impl<'a> Codegen<'a> {
 
                 let struct_name = match &struc.typed {
                     AzulaType::Named(name) => name.clone(),
+                    AzulaType::Pointer(nested) => match nested.deref().clone() {
+                        AzulaType::Named(name) => name.clone(),
+                        _ => unreachable!("{:?}", struc.typed),
+                    },
                     _ => unreachable!("{:?}", struc.typed),
                 };
 

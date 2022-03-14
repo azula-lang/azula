@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AzulaType<'a> {
@@ -36,6 +36,19 @@ impl<'a> From<&'a str> for AzulaType<'a> {
             "bool" => Self::Bool,
             "void" => Self::Void,
             _ => Self::Named(val.to_string()),
+        }
+    }
+}
+
+impl<'a> AzulaType<'a> {
+    pub fn is_indexable(&self) -> bool {
+        match self {
+            AzulaType::Array(..) => true,
+            AzulaType::Pointer(nested) => match nested.deref().clone() {
+                AzulaType::Str => true,
+                _ => false,
+            },
+            _ => false,
         }
     }
 }

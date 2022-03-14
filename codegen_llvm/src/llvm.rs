@@ -246,14 +246,24 @@ impl<'a> LLVMCodegen<'a> {
     }
 
     fn generate_structs(&mut self, module: &Module<'a>) {
+        // Generate structs first so they can refer to each other
+        for (i, _) in &module.structs {
+            let struc = self.context.opaque_struct_type(i);
+            self.structs.insert(i.to_string(), struc);
+        }
+
+        // Set the body of the structs
         for (i, str) in &module.structs {
             let args: Vec<_> = str
                 .attributes
                 .iter()
                 .map(|(arg, _)| self.azula_type_to_llvm_basic_type(arg.clone()))
                 .collect();
-            let struc = self.context.struct_type(&args, false);
-            self.structs.insert(i.to_string(), struc);
+
+            self.structs
+                .get(&i.to_string())
+                .unwrap()
+                .set_body(&args, false);
         }
     }
 
@@ -589,7 +599,7 @@ impl<'a> LLVMCodegen<'a> {
                             "lt",
                         )
                         .as_basic_value_enum(),
-                    _ => unreachable!(),
+                    _ => unreachable!("{:?}", local1),
                 };
 
                 locals.store(dest, value.as_basic_value_enum());
@@ -634,16 +644,25 @@ impl<'a> LLVMCodegen<'a> {
                 locals.store(dest, alloca.as_basic_value_enum());
             }
             Instruction::CreateArray(typ, size, dest) => {
-                let alloca = self.builder.build_alloca(
-                    self.azula_type_to_llvm_basic_type(typ)
-                        .array_type(size as u32),
-                    "array",
-                );
+                // let alloca = self.builder.build_alloca(
+                //     self.azula_type_to_llvm_basic_type(typ)
+                //         .array_type(size as u32),
+                //     "array",
+                // );
 
-                locals.store(dest, alloca.as_basic_value_enum());
+                let array = self
+                    .builder
+                    .build_array_malloc(
+                        self.azula_type_to_llvm_basic_type(typ.clone()),
+                        self.context.i32_type().const_int(size as u64, false),
+                        "array",
+                    )
+                    .unwrap();
+
+                locals.store(dest, array.as_basic_value_enum());
             }
             Instruction::StoreElement(array, index, value) => {
-                let array = locals.load(value_to_local(array)).into_pointer_value();
+                let array = locals.load(value_to_local(array));
 
                 let index = locals.load(value_to_local(index)).into_int_value();
 
@@ -653,31 +672,39 @@ impl<'a> LLVMCodegen<'a> {
                     _ => unreachable!(),
                 };
 
+                // let array_ptr = self.builder.build_bitcast(
+                //     array,
+                //     array
+                //         .get_type()
+                //         .into_array_type()
+                //         .ptr_type(AddressSpace::Generic),
+                //     "cast",
+                // );
+
                 let ptr = unsafe {
-                    self.builder.build_in_bounds_gep(
-                        array,
-                        &[self.context.i64_type().const_int(0, false), index],
-                        "gep",
-                    )
+                    self.builder
+                        .build_in_bounds_gep(array.into_pointer_value(), &[index], "gep")
                 };
 
                 self.builder.build_store(ptr, val);
             }
             Instruction::AccessElement(array, index, dest) => {
-                let array = locals.load(value_to_local(array)).into_pointer_value();
+                let array = locals.load(value_to_local(array));
 
                 let index = locals.load(value_to_local(index)).into_int_value();
 
-                // let downcast = self
-                //     .builder
-                //     .build_int_cast(index, self.context.i32_type(), "cast");
+                // let array_ptr = self.builder.build_bitcast(
+                //     array,
+                //     array
+                //         .get_type()
+                //         .into_array_type()
+                //         .ptr_type(AddressSpace::Generic),
+                //     "cast",
+                // );
 
                 let ptr = unsafe {
-                    self.builder.build_in_bounds_gep(
-                        array,
-                        &[self.context.i64_type().const_int(0, false), index],
-                        "gep",
-                    )
+                    self.builder
+                        .build_in_bounds_gep(array.into_pointer_value(), &[index], "gep")
                 };
 
                 let result = self.builder.build_load(ptr, "access");
@@ -685,19 +712,6 @@ impl<'a> LLVMCodegen<'a> {
                 locals.store(dest, result.as_basic_value_enum());
             }
             Instruction::StoreStructMember(struc, index, val) => {
-                let struc = locals.load(value_to_local(struc)).into_pointer_value();
-
-                let ptr = unsafe {
-                    self.builder.build_in_bounds_gep(
-                        struc,
-                        &[
-                            self.context.i32_type().const_int(0, false),
-                            self.context.i32_type().const_int(index as u64, false),
-                        ],
-                        "gep",
-                    )
-                };
-
                 let val = match val {
                     Value::Local(ptr) => locals.load(ptr),
                     Value::LiteralInteger(_) => todo!(),
@@ -705,7 +719,29 @@ impl<'a> LLVMCodegen<'a> {
                     Value::Global(v) => *self.strings.get(&v).unwrap(),
                 };
 
-                self.builder.build_store(ptr, val);
+                let struc_val = locals.load(value_to_local(struc.clone()));
+
+                if struc_val.is_struct_value() {
+                    let val = self
+                        .builder
+                        .build_insert_value(struc_val.into_struct_value(), val, index as u32, "val")
+                        .unwrap();
+
+                    locals.store(value_to_local(struc), val.as_basic_value_enum());
+                } else if struc_val.is_pointer_value() {
+                    let ptr = unsafe {
+                        self.builder.build_in_bounds_gep(
+                            struc_val.into_pointer_value(),
+                            &[
+                                self.context.i32_type().const_int(0, false),
+                                self.context.i32_type().const_int(index as u64, false),
+                            ],
+                            "gep",
+                        )
+                    };
+
+                    self.builder.build_store(ptr, val);
+                }
             }
             Instruction::CreateStruct(struc, values, dest) => {
                 let struc = self.structs.get(&struc).unwrap();
@@ -734,28 +770,33 @@ impl<'a> LLVMCodegen<'a> {
                         .into_struct_value();
                 }
 
-                let alloca = self
-                    .builder
-                    .build_alloca(struc.as_basic_type_enum(), "alloca");
-                self.builder.build_store(alloca, agg);
-                locals.store(dest, alloca.as_basic_value_enum());
+                locals.store(dest, agg.as_basic_value_enum());
             }
             Instruction::AccessStructMember(struc, index, dest) => {
-                let struc = locals.load(value_to_local(struc)).into_pointer_value();
+                let struc = locals.load(value_to_local(struc));
 
-                let ptr = unsafe {
-                    self.builder.build_in_bounds_gep(
-                        struc,
-                        &[
-                            self.context.i32_type().const_int(0, false),
-                            self.context.i32_type().const_int(index as u64, false),
-                        ],
-                        "gep",
-                    )
-                };
+                if struc.is_struct_value() {
+                    let val = self
+                        .builder
+                        .build_extract_value(struc.into_struct_value(), index as u32, "val")
+                        .unwrap();
 
-                let val = self.builder.build_load(ptr, "load");
-                locals.store(dest, val.as_basic_value_enum());
+                    locals.store(dest, val.as_basic_value_enum());
+                } else if struc.is_pointer_value() {
+                    let ptr = unsafe {
+                        self.builder.build_in_bounds_gep(
+                            struc.into_pointer_value(),
+                            &[
+                                self.context.i32_type().const_int(0, false),
+                                self.context.i32_type().const_int(index as u64, false),
+                            ],
+                            "gep",
+                        )
+                    };
+
+                    let val = self.builder.build_load(ptr, "load");
+                    locals.store(dest, val.as_basic_value_enum());
+                }
             }
         };
     }
@@ -967,15 +1008,13 @@ impl<'a> LLVMCodegen<'a> {
                 .structs
                 .get(&name.to_string())
                 .unwrap()
-                .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
             AzulaType::UnknownType(_) => todo!(),
-            AzulaType::Array(typ, size) => {
+            AzulaType::Array(typ, _) => {
                 let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
 
-                typ.array_type(size.unwrap() as u32)
-                    .ptr_type(AddressSpace::Generic)
-                    .as_basic_type_enum()
+                // typ.array_type(size.unwrap() as u32).as_basic_type_enum()
+                typ.ptr_type(AddressSpace::Generic).as_basic_type_enum()
             }
         }
     }
@@ -1024,15 +1063,13 @@ impl<'a> LLVMCodegen<'a> {
                 .structs
                 .get(&name.to_string())
                 .unwrap()
-                .ptr_type(AddressSpace::Generic)
                 .fn_type(args, false),
             AzulaType::UnknownType(_) => todo!(),
-            AzulaType::Array(typ, size) => {
+            AzulaType::Array(typ, _) => {
                 let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
 
-                typ.array_type(size.unwrap() as u32)
-                    .ptr_type(AddressSpace::Generic)
-                    .fn_type(args, false)
+                // typ.array_type(size.unwrap() as u32).fn_type(args, false)
+                typ.ptr_type(AddressSpace::Generic).fn_type(args, false)
             }
         }
     }
@@ -1082,15 +1119,13 @@ impl<'a> LLVMCodegen<'a> {
                 .structs
                 .get(&name.to_string())
                 .unwrap()
-                .ptr_type(AddressSpace::Generic)
-                .fn_type(args, false),
+                .fn_type(args, varargs),
             AzulaType::UnknownType(_) => todo!(),
-            AzulaType::Array(typ, size) => {
+            AzulaType::Array(typ, _) => {
                 let typ = self.azula_type_to_llvm_basic_type(typ.deref().clone());
 
-                typ.array_type(size.unwrap() as u32)
-                    .ptr_type(AddressSpace::Generic)
-                    .fn_type(args, false)
+                // typ.array_type(size.unwrap() as u32).fn_type(args, false)
+                typ.ptr_type(AddressSpace::Generic).fn_type(args, varargs)
             }
         }
     }

@@ -740,7 +740,7 @@ impl<'a> Parser<'a> {
                 Some(expr)
             }
             TokenKind::Bang => {
-                let expr = self.parse_expression(PREFIX, true).unwrap();
+                let expr = self.parse_expression(PREFIX, allow_struct_init).unwrap();
 
                 Some(ExpressionNode {
                     expression: Expression::Not(Rc::new(expr.clone())),
@@ -981,6 +981,7 @@ impl<'a> Parser<'a> {
             }
         }
         while peek == TokenKind::Comma {
+            // TODO allow trailing comma
             self.lexer.next();
             if let Some(expr) = self.parse_expression(LOWEST, true) {
                 expressions.push(expr);

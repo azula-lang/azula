@@ -26,6 +26,7 @@ struct StructDefinition<'a> {
     attrs: Vec<(AzulaType<'a>, &'a str)>,
 }
 
+#[derive(Debug)]
 pub struct VariableDefinition<'a> {
     name: String,
     mutable: bool,
@@ -731,8 +732,15 @@ impl<'a> Typechecker<'a> {
                     return Err("Non int index".to_string());
                 }
 
-                let return_typ = if let AzulaType::Array(nested, _) = array_typ {
-                    nested.deref().clone()
+                let return_typ = if array_typ.is_indexable() {
+                    match array_typ {
+                        AzulaType::Array(nested, _) => nested.deref().clone(),
+                        AzulaType::Pointer(nested) => match nested.deref().clone() {
+                            AzulaType::Str => AzulaType::Int,
+                            _ => unreachable!(),
+                        },
+                        _ => unreachable!(),
+                    }
                 } else {
                     self.errors.push(AzulaError::new(
                         ErrorType::NonArrayInIndex(format!("{:?}", array_typ)),
@@ -756,9 +764,19 @@ impl<'a> Typechecker<'a> {
                     Expression::Identifier(s) => s.clone(),
                     _ => unreachable!(),
                 };
+
+                let mut attrs_new = vec![];
+                for (name, attr) in attrs.iter() {
+                    let expr = match self.typecheck_expression(attr.clone(), env) {
+                        Ok((expr, _)) => expr,
+                        Err(e) => return Err(e),
+                    };
+                    attrs_new.push((*name, expr));
+                }
+
                 return Ok((
                     ExpressionNode {
-                        expression: Expression::StructInitialisation(struc, attrs),
+                        expression: Expression::StructInitialisation(struc, attrs_new),
                         typed: AzulaType::Named(name.clone()),
                         span: expr.span,
                     },
@@ -774,6 +792,17 @@ impl<'a> Typechecker<'a> {
 
                 let struc_name = match struc_type {
                     AzulaType::Named(s) => s,
+                    AzulaType::Pointer(nested) => match nested.deref().clone() {
+                        AzulaType::Named(s) => s,
+                        _ => {
+                            self.errors.push(AzulaError::new(
+                                ErrorType::AccessNonStruct,
+                                struc.span.start,
+                                struc.span.end,
+                            ));
+                            return Err("accessing non-struct".to_string());
+                        }
+                    },
                     _ => {
                         self.errors.push(AzulaError::new(
                             ErrorType::AccessNonStruct,
