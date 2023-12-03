@@ -10,13 +10,15 @@ pub struct Typechecker<'a> {
     functions: HashMap<&'a str, FunctionDefinition<'a>>,
     globals: HashMap<String, VariableDefinition<'a>>,
     structs: HashMap<String, StructDefinition<'a>>,
+    namespaces: HashMap<String, Namespace<'a>>,
 
     pub errors: Vec<AzulaError>,
 }
 
+#[derive(Clone, Debug)]
 struct FunctionDefinition<'a> {
-    name: &'a str,
-    args: Vec<(AzulaType<'a>, &'a str)>,
+    name: String,
+    args: Vec<(AzulaType<'a>, String)>,
     varargs: bool,
     returns: AzulaType<'a>,
 }
@@ -31,6 +33,12 @@ pub struct VariableDefinition<'a> {
     name: String,
     mutable: bool,
     typ: AzulaType<'a>,
+}
+
+#[derive(Debug)]
+pub struct Namespace<'a> {
+    name: String,
+    funcs: HashMap<&'a str, FunctionDefinition<'a>>,
 }
 
 pub struct Environment<'a> {
@@ -56,6 +64,7 @@ impl<'a> Typechecker<'a> {
             functions: HashMap::new(),
             globals: HashMap::new(),
             structs: HashMap::new(),
+            namespaces: HashMap::new(),
             errors: vec![],
         }
     }
@@ -72,7 +81,7 @@ impl<'a> Typechecker<'a> {
                     } => {
                         let args_converted: Vec<_> = args
                             .iter()
-                            .map(|(typ, name)| (AzulaType::from(typ.clone()), *name))
+                            .map(|(typ, name)| (AzulaType::from(typ.clone()), name.to_string()))
                             .collect();
 
                         let returns_converted: AzulaType = returns.clone().into();
@@ -80,7 +89,7 @@ impl<'a> Typechecker<'a> {
                         self.functions.insert(
                             name,
                             FunctionDefinition {
-                                name,
+                                name: name.to_string(),
                                 varargs: true,
                                 args: args_converted.clone(),
                                 returns: returns_converted.clone(),
@@ -94,20 +103,68 @@ impl<'a> Typechecker<'a> {
                         returns,
                         ..
                     } => {
-                        let args_converted: Vec<_> =
-                            args.iter().map(|typ| (typ.clone(), "xyz")).collect();
+                        let args_converted: Vec<_> = args
+                            .iter()
+                            .map(|typ| (typ.clone(), "xyz".to_string()))
+                            .collect();
 
                         let returns_converted: AzulaType = returns.clone().into();
 
                         self.functions.insert(
                             name,
                             FunctionDefinition {
-                                name,
+                                name: name.to_string(),
                                 varargs: false,
                                 args: args_converted.clone(),
                                 returns: returns_converted.clone(),
                             },
                         );
+                    }
+                    Statement::Impl {
+                        struct_impl,
+                        trait_impl,
+                        funcs,
+                        span,
+                    } => {
+                        let mut new_funcs = HashMap::new();
+                        for func in funcs {
+                            if let Statement::Function {
+                                name,
+                                args,
+                                returns,
+                                body,
+                                span,
+                            } = func
+                            {
+                                let args_converted: Vec<_> = args
+                                    .iter()
+                                    .map(|(typ, name)| {
+                                        (AzulaType::from(typ.clone()), name.to_string())
+                                    })
+                                    .collect();
+
+                                let returns_converted: AzulaType = returns.clone().into();
+
+                                new_funcs.insert(
+                                    name.clone(),
+                                    FunctionDefinition {
+                                        name: name.to_string(),
+                                        varargs: true,
+                                        args: args_converted.clone(),
+                                        returns: returns_converted.clone(),
+                                    },
+                                );
+                            }
+                        }
+
+                        let struc_name = struct_impl.to_string();
+
+                        let namespace = Namespace {
+                            name: struc_name.clone(),
+                            funcs: new_funcs,
+                        };
+
+                        self.namespaces.insert(struc_name, namespace);
                     }
                     _ => {}
                 }
@@ -153,6 +210,24 @@ impl<'a> Typechecker<'a> {
                 Ok(Statement::Struct {
                     name: name,
                     attributes: attributes,
+                    span: span,
+                })
+            }
+            Statement::Impl {
+                struct_impl,
+                trait_impl,
+                funcs,
+                span,
+            } => {
+                let mut new_funcs = vec![];
+                for func in funcs {
+                    new_funcs.push(self.typecheck_function(func).unwrap());
+                }
+
+                Ok(Statement::Impl {
+                    struct_impl: struct_impl,
+                    trait_impl: trait_impl,
+                    funcs: new_funcs,
                     span: span,
                 })
             }
@@ -405,7 +480,7 @@ impl<'a> Typechecker<'a> {
                             var.span.start,
                             var.span.end,
                         ));
-                        return Err("unknown variable".to_string());
+                        return Err(format!("unknown variable {:?}", var.expression));
                     }
                 },
                 Expression::ArrayAccess(..) => {}
@@ -577,29 +652,29 @@ impl<'a> Typechecker<'a> {
                         expr.span.start,
                         expr.span.end,
                     ));
-                    return Err("Unknown variable".to_string());
+                    return Err(format!("Unknown variable {:?}", name));
                 }
             }
-            Expression::FunctionCall { function, args } => {
-                let return_type = match &function.expression {
-                    Expression::Identifier(i) => match self.functions.get(&i.as_str()) {
-                        Some(f) => &f.returns,
-                        None => {
-                            if i == "printf" || i == "sprintf" || i == "puts" {
-                                &AzulaType::Void
-                            } else {
-                                self.errors.push(AzulaError::new(
-                                    ErrorType::FunctionNotFound(i.to_string()),
-                                    function.span.start,
-                                    function.span.end,
-                                ));
-                                return Err("Function not found".to_string());
-                            }
-                        }
-                    },
-                    _ => todo!(),
-                }
-                .clone();
+            Expression::FunctionCall { mut function, args } => {
+                let func = match self.resolve_function(
+                    self.functions.clone(),
+                    function.deref().clone(),
+                    env,
+                ) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::FunctionNotFound(e),
+                            function.span.start,
+                            function.span.end,
+                        ));
+                        return Err(format!("Function not found {:?}", function));
+                    }
+                };
+
+                let function = self.typecheck_function_def(function.deref().clone(), env);
+
+                let return_type = func.returns;
 
                 let mut new_args = vec![];
                 for arg in args.clone() {
@@ -613,7 +688,7 @@ impl<'a> Typechecker<'a> {
                 return Ok((
                     ExpressionNode {
                         expression: Expression::FunctionCall {
-                            function: function.clone(),
+                            function: Rc::new(function),
                             args: new_args,
                         },
                         typed: return_type.clone(),
@@ -859,6 +934,36 @@ impl<'a> Typechecker<'a> {
                         span: expr.span,
                     },
                     typ.clone(),
+                ));
+            }
+            Expression::NamespaceAccess(ns, identifier) => {
+                let namespace = if let Expression::Identifier(ident) = ns.deref().clone().expression
+                {
+                    let namespace = self.namespaces.get(&ident);
+                    match namespace {
+                        Some(f) => Ok(f.clone()),
+                        None => Err(ident),
+                    }
+                } else {
+                    unreachable!()
+                };
+
+                if namespace.is_err() {
+                    return Err("namespace".to_string());
+                }
+
+                let namespace = namespace.unwrap();
+
+                let mut ns = ns.deref().clone();
+                ns.typed = AzulaType::Named(namespace.name.clone());
+
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::NamespaceAccess(Rc::new(ns), identifier),
+                        typed: AzulaType::Infer,
+                        span: expr.span,
+                    },
+                    AzulaType::Infer,
                 ));
             }
         }
@@ -1111,6 +1216,111 @@ impl<'a> Typechecker<'a> {
         } else {
             unreachable!()
         }
+    }
+
+    fn typecheck_function_def(
+        &mut self,
+        mut expr: ExpressionNode<'a>,
+        env: &Environment<'a>,
+    ) -> ExpressionNode<'a> {
+        if let Expression::Identifier(..) = expr.expression {
+            return expr.clone();
+        }
+
+        if let Expression::NamespaceAccess(ref ns, _) = expr.expression {
+            let namespace = if let Expression::Identifier(ident) = ns.deref().clone().expression {
+                ident
+            } else {
+                unreachable!()
+            };
+
+            expr.typed = AzulaType::Named(namespace);
+            return expr.clone();
+        }
+
+        if let Expression::StructAccess(ref struc, ref right) = expr.expression {
+            let (_, resolved_type) = self
+                .typecheck_expression(struc.deref().clone(), env)
+                .unwrap();
+
+            return ExpressionNode {
+                expression: Expression::StructAccess(
+                    Rc::new(ExpressionNode {
+                        expression: struc.expression.clone(),
+                        typed: resolved_type.clone(),
+                        span: struc.span.clone(),
+                    }),
+                    right.clone(),
+                ),
+                typed: resolved_type.clone(),
+                span: expr.span,
+            };
+        }
+
+        expr
+    }
+
+    fn resolve_function(
+        &mut self,
+        namespace: HashMap<&'a str, FunctionDefinition<'a>>,
+        expr: ExpressionNode<'a>,
+        env: &Environment<'a>,
+    ) -> Result<FunctionDefinition<'a>, String> {
+        if let Expression::Identifier(s) = expr.expression {
+            return match namespace.get(&s.as_str()) {
+                Some(f) => Ok(f.clone()),
+                None => {
+                    if s == "printf" || s == "sprintf" || s == "puts" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![],
+                            varargs: true,
+                            returns: AzulaType::Void,
+                        })
+                    } else {
+                        Err(s)
+                    }
+                }
+            };
+        }
+
+        if let Expression::NamespaceAccess(ns, identifier) = expr.expression {
+            let namespace = if let Expression::Identifier(ident) = ns.deref().clone().expression {
+                let namespace = self.namespaces.get(&ident);
+                match namespace {
+                    Some(f) => Ok(f.clone()),
+                    None => Err(ident),
+                }
+            } else {
+                unreachable!()
+            };
+
+            if namespace.is_err() {
+                return Err("namespace".to_string());
+            }
+
+            let namespace = namespace.unwrap();
+
+            return self.resolve_function(namespace.funcs.clone(), identifier.deref().clone(), env);
+        }
+
+        if let Expression::StructAccess(struc, method) = expr.expression {
+            let (_, resolved_type) = self
+                .typecheck_expression(struc.deref().clone(), env)
+                .unwrap();
+
+            let namespace = self.namespaces.get(&resolved_type.to_string());
+
+            if namespace.is_none() {
+                return Err("namespace".to_string());
+            }
+
+            let namespace = namespace.unwrap();
+
+            return self.resolve_function(namespace.funcs.clone(), method.deref().clone(), env);
+        }
+
+        Err("none".to_string())
     }
 }
 

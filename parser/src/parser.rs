@@ -58,6 +58,7 @@ impl<'a> Parser<'a> {
             TokenKind::Const => self.parse_assign(false),
             TokenKind::If => self.parse_if(),
             TokenKind::While => self.parse_while(),
+            TokenKind::Impl => self.parse_impl(),
             TokenKind::SemiColon => {
                 self.lexer.next();
                 None
@@ -444,6 +445,39 @@ impl<'a> Parser<'a> {
                 end: end_token.span.end,
             },
         ))
+    }
+
+    fn parse_impl(&mut self) -> Option<Statement<'a>> {
+        // impl
+        let start_token = self.lexer.next().unwrap();
+
+        let first_ident = self.parse_type();
+        let mut impl_stmt = (first_ident.clone(), None);
+
+        if self.lexer.peek().unwrap().kind == TokenKind::For {
+            self.lexer.next();
+            impl_stmt = (self.parse_type(), Some(first_ident));
+        }
+
+        if !self.expect_peek(TokenKind::BraceOpen) {
+            return None;
+        }
+
+        self.lexer.next();
+
+        let body = self.parse_block(TokenKind::BraceClose);
+
+        let end_token = self.lexer.next().unwrap();
+
+        Some(Statement::Impl {
+            struct_impl: impl_stmt.0,
+            trait_impl: impl_stmt.1,
+            funcs: body,
+            span: Span {
+                start: start_token.span.start,
+                end: end_token.span.end,
+            },
+        })
     }
 
     fn parse_type(&mut self) -> AzulaType<'a> {
@@ -847,6 +881,7 @@ impl<'a> Parser<'a> {
 
         match kind {
             TokenKind::Dot => self.parse_struct_access(left),
+            TokenKind::NamespaceAccess => self.parse_namespace_access(left),
             TokenKind::BracketOpen => self.parse_function_call(left),
             TokenKind::SquareOpen => self.parse_array_access(left),
             TokenKind::BraceOpen if allow_struct_init => self.parse_struct_init(left),
@@ -1043,6 +1078,23 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_namespace_access(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
+        self.lexer.next();
+        let index = match self.parse_expression(ACCESS, false) {
+            Some(expr) => expr,
+            None => return None,
+        };
+
+        Some(ExpressionNode {
+            expression: Expression::NamespaceAccess(Rc::new(left.clone()), Rc::new(index.clone())),
+            typed: AzulaType::Infer,
+            span: Span {
+                start: left.span.start,
+                end: index.span.end,
+            },
+        })
+    }
+
     fn parse_struct_init(&mut self, left: ExpressionNode<'a>) -> Option<ExpressionNode<'a>> {
         // {
         self.lexer.next();
@@ -1206,7 +1258,7 @@ fn operator_precedence(tok: TokenKind, allow_struct_init: bool) -> OperatorPrece
         TokenKind::Slash | TokenKind::Asterisk | TokenKind::Power | TokenKind::Modulo => PRODUCT,
         TokenKind::BraceOpen if allow_struct_init => STRUCT_INIT,
         TokenKind::BracketOpen | TokenKind::SquareOpen => CALL,
-        TokenKind::Dot => ACCESS,
+        TokenKind::Dot | TokenKind::NamespaceAccess => ACCESS,
         _ => LOWEST,
     }
 }
@@ -1660,6 +1712,63 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_impl() {
+        // Basic
+        let input = "impl Test { }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let stmt = parser.parse_statement().unwrap();
+        assert_eq!(
+            stmt,
+            Statement::Impl {
+                struct_impl: AzulaType::Named("Test".to_string()),
+                trait_impl: None,
+                funcs: vec![],
+                span: Span { start: 0, end: 13 },
+            }
+        );
+
+        // Implement trait
+        let input = "impl Display for Test { }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let stmt = parser.parse_statement().unwrap();
+        assert_eq!(
+            stmt,
+            Statement::Impl {
+                struct_impl: AzulaType::Named("Test".to_string()),
+                trait_impl: Some(AzulaType::Named("Display".to_string())),
+                funcs: vec![],
+                span: Span { start: 0, end: 25 },
+            }
+        );
+
+        // Functions
+        let input = "impl Test { func test { } }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let stmt = parser.parse_statement().unwrap();
+        assert_eq!(
+            stmt,
+            Statement::Impl {
+                struct_impl: AzulaType::Named("Test".to_string()),
+                trait_impl: None,
+                funcs: vec![Statement::Function {
+                    name: "test",
+                    args: vec![],
+                    returns: AzulaType::Void,
+                    body: Rc::new(Statement::Block(vec![])),
+                    span: Span { start: 12, end: 25 },
+                }],
+                span: Span { start: 0, end: 27 },
+            }
+        );
+    }
+
+    #[test]
     fn test_parse_array_access() {
         // Basic int
         let input = "x[10]";
@@ -1713,6 +1822,34 @@ mod tests {
                 ),
                 typed: AzulaType::Infer,
                 span: Span { start: 0, end: 9 }
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_namespace_access() {
+        let input = "Test::test";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expr = parser.parse_expression(LOWEST, true).unwrap();
+        assert_eq!(
+            expr,
+            ExpressionNode {
+                expression: Expression::NamespaceAccess(
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("Test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 0, end: 4 }
+                    }),
+                    Rc::new(ExpressionNode {
+                        expression: Expression::Identifier("test".to_string()),
+                        typed: AzulaType::Infer,
+                        span: Span { start: 6, end: 10 }
+                    })
+                ),
+                typed: AzulaType::Infer,
+                span: Span { start: 0, end: 10 }
             }
         );
     }

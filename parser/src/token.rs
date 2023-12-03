@@ -23,24 +23,25 @@ pub enum TokenKind<'a> {
     SemiColon, // ;
     Colon,     // :
 
-    Plus,         // +
-    Minus,        // -
-    Slash,        // /
-    Asterisk,     // *
-    Power,        // **
-    Assign,       // =
-    Equal,        // ==
-    NotEqual,     // !=
-    Bar,          // |
-    Or,           // ||
-    Ampersand,    // &
-    And,          // &&
-    Bang,         // !
-    Less,         // <
-    LessEqual,    // <=
-    Greater,      // >
-    GreaterEqual, // >=
-    Modulo,       // %
+    Plus,            // +
+    Minus,           // -
+    Slash,           // /
+    Asterisk,        // *
+    Power,           // **
+    Assign,          // =
+    Equal,           // ==
+    NotEqual,        // !=
+    Bar,             // |
+    Or,              // ||
+    Ampersand,       // &
+    And,             // &&
+    Bang,            // !
+    Less,            // <
+    LessEqual,       // <=
+    Greater,         // >
+    GreaterEqual,    // >=
+    Modulo,          // %
+    NamespaceAccess, // ::
 
     Function, // func
     Return,   // return
@@ -53,6 +54,8 @@ pub enum TokenKind<'a> {
     VarArgs,  // varargs
     While,    // while
     Struct,   // struct
+    Impl,     // impl
+    For,      // for
 
     Comment,
     UnknownToken,

@@ -37,6 +37,12 @@ pub enum Statement<'a> {
         attributes: Vec<TypedIdentifier<'a>>,
         span: Span,
     },
+    Impl {
+        struct_impl: AzulaType<'a>,
+        trait_impl: Option<AzulaType<'a>>,
+        funcs: Vec<Statement<'a>>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -57,6 +63,7 @@ pub enum Expression<'a> {
     ArrayAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
     StructInitialisation(Rc<ExpressionNode<'a>>, Vec<(&'a str, ExpressionNode<'a>)>),
     StructAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
+    NamespaceAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

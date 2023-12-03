@@ -7,7 +7,7 @@ use crate::instruction::{Instruction, Value};
 
 pub struct Module<'a> {
     pub name: &'a str,
-    pub functions: HashMap<&'a str, Function<'a>>,
+    pub functions: HashMap<String, Function<'a>>,
     pub extern_functions: HashMap<&'a str, ExternFunction<'a>>,
     pub strings: Vec<String>,
     pub global_values: HashMap<String, GlobalValue>,
@@ -35,7 +35,7 @@ impl<'a> Module<'a> {
         }
     }
 
-    pub fn add_function(&mut self, name: &'a str, function: Function<'a>) {
+    pub fn add_function(&mut self, name: String, function: Function<'a>) {
         self.functions.insert(name, function);
     }
 

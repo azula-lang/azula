@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, rc::Rc};
 
 use azula_ast::prelude::*;
 use azula_ir::prelude::*;
@@ -40,6 +40,7 @@ impl<'a> Codegen<'a> {
                             returns: returns,
                         },
                     ),
+                    Statement::Impl { .. } => self.codegen_impl(stmt.clone()),
                     Statement::Assign(_, name, _, val, ..) => {
                         let value = match val.expression {
                             Expression::Integer(i) => GlobalValue::Int(i),
@@ -118,7 +119,51 @@ impl<'a> Codegen<'a> {
                 }
             }
 
-            self.module.add_function(name, function)
+            self.module.add_function(name.to_string(), function)
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn codegen_impl(&mut self, stmt: Statement<'a>) {
+        if let Statement::Impl {
+            struct_impl,
+            trait_impl: _,
+            funcs,
+            span: _,
+        } = stmt
+        {
+            for func in funcs {
+                match func {
+                    Statement::Function {
+                        name,
+                        args,
+                        returns,
+                        body,
+                        ..
+                    } => {
+                        let mut arguments = vec![];
+                        for (typ, name) in args {
+                            arguments.push((name.to_string(), typ));
+                        }
+
+                        let mut function = Function::new();
+                        function.arguments = arguments;
+                        function.returns = returns;
+
+                        if let Statement::Block(stmts) = body.as_ref().clone() {
+                            for stmt in stmts {
+                                self.codegen_statement(stmt, &mut function);
+                            }
+                        }
+
+                        let gen_name = format!("{}_{}", struct_impl.to_string(), name);
+
+                        self.module.add_function(gen_name, function)
+                    }
+                    _ => unreachable!(),
+                };
+            }
         } else {
             unreachable!()
         }
@@ -159,7 +204,7 @@ impl<'a> Codegen<'a> {
                     func.store_element(array.clone(), index, value);
                 }
                 Expression::StructAccess(struc, member) => {
-                    let struc_val = self.codegen_expr(struc.deref().clone(), func, true);
+                    let struc_val = self.codegen_expr(struc.deref().clone(), func, false);
                     let member_name = match &member.expression {
                         Expression::Identifier(v) => v,
                         _ => unreachable!(),
@@ -300,7 +345,20 @@ impl<'a> Codegen<'a> {
                     unreachable!()
                 }
             }
-            Expression::Identifier(name) => func.ptr(name),
+            Expression::Identifier(name) => {
+                if let Some((index, _)) = func
+                    .arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (name, _))| (index, name))
+                    .filter(|(_, n)| n.clone().clone() == name)
+                    .next()
+                {
+                    func.load_arg(index, expr.typed.clone())
+                } else {
+                    func.ptr(name)
+                }
+            }
             Expression::String(val) => self.module.add_string(val),
             Expression::Boolean(val) => {
                 if val {
@@ -309,11 +367,8 @@ impl<'a> Codegen<'a> {
                     func.const_false()
                 }
             }
-            Expression::FunctionCall { function, args } => {
-                let name = match &function.expression {
-                    Expression::Identifier(name) => name,
-                    _ => todo!(),
-                };
+            Expression::FunctionCall { function, mut args } => {
+                let name = self.resolve_function(function.deref().clone());
 
                 // if name == "__array_len" {
                 //     match args[0].typed {
@@ -322,10 +377,24 @@ impl<'a> Codegen<'a> {
                 //     }
                 // }
 
+                if let Expression::StructAccess(left, ..) = &function.expression {
+                    if let Expression::Identifier(_) = &left.expression {
+                        args.insert(
+                            0,
+                            ExpressionNode {
+                                expression: Expression::Pointer(left.clone()),
+                                typed: AzulaType::Pointer(Rc::new(left.typed.clone())),
+                                span: left.span.clone(),
+                            },
+                        );
+                    }
+                }
+
                 let args = args
                     .iter()
                     .map(|arg| self.codegen_expr(arg.clone(), func, true))
                     .collect();
+
                 func.function_call(name.clone(), args)
             }
             Expression::Not(expr) => {
@@ -399,6 +468,7 @@ impl<'a> Codegen<'a> {
 
                 func.access_struct_member(struct_value, index, resolve_pointer)
             }
+            Expression::NamespaceAccess(_, _) => todo!(),
         }
     }
 
@@ -406,7 +476,7 @@ impl<'a> Codegen<'a> {
         &mut self,
         expr: ExpressionNode<'a>,
         func: &mut Function<'a>,
-        resolve_pointer: bool,
+        _: bool,
     ) -> Value {
         if let Expression::Infix(val1, op, val2) = expr.expression {
             match op {
@@ -497,6 +567,39 @@ impl<'a> Codegen<'a> {
             }
         } else {
             unreachable!()
+        }
+    }
+
+    fn resolve_function(&self, func: ExpressionNode<'a>) -> String {
+        match func.expression {
+            Expression::Identifier(name) => name,
+            Expression::NamespaceAccess(ns, func) => {
+                let namespace = if let Expression::Identifier(s) = ns.deref().clone().expression {
+                    s
+                } else {
+                    unreachable!()
+                };
+
+                let func = if let Expression::Identifier(func) = &func.expression {
+                    func
+                } else {
+                    unreachable!()
+                };
+
+                format!("{}_{}", namespace, func)
+            }
+            Expression::StructAccess(left, right) => {
+                let namespace = left.deref().clone().typed.to_string();
+
+                let func = if let Expression::Identifier(func) = &right.expression {
+                    func
+                } else {
+                    unreachable!()
+                };
+
+                format!("{}_{}", namespace, func)
+            }
+            _ => unreachable!("{:?}", func.expression),
         }
     }
 }

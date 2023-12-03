@@ -39,7 +39,13 @@ impl<'a> Lexer<'a> {
                 '.' => Token::new(TokenKind::Dot, start, self.index),
                 ',' => Token::new(TokenKind::Comma, start, self.index),
                 ';' => Token::new(TokenKind::SemiColon, start, self.index),
-                ':' => Token::new(TokenKind::Colon, start, self.index),
+                ':' => match self.peekable.peek() {
+                    Some(':') => {
+                        self.next();
+                        Token::new(TokenKind::NamespaceAccess, start, self.index)
+                    }
+                    _ => Token::new(TokenKind::Colon, start, self.index),
+                },
                 '+' => Token::new(TokenKind::Plus, start, self.index),
                 '-' => Token::new(TokenKind::Minus, start, self.index),
                 '/' => match self.peekable.peek() {
@@ -187,6 +193,8 @@ impl<'a> Lexer<'a> {
             "varargs" => Token::new(TokenKind::VarArgs, start, self.index),
             "while" => Token::new(TokenKind::While, start, self.index),
             "struct" => Token::new(TokenKind::Struct, start, self.index),
+            "impl" => Token::new(TokenKind::Impl, start, self.index),
+            "for" => Token::new(TokenKind::For, start, self.index),
             _ => Token::new(TokenKind::Identifier(value), start, self.index),
         }
     }
@@ -391,6 +399,14 @@ mod tests {
         struct_stmt: (
             "struct",
             vec![Token::new(TokenKind::Struct, 0, 6)],
+        ),
+        impl_stmt: (
+            "impl",
+            vec![Token::new(TokenKind::Impl, 0, 4)],
+        ),
+        namespace_access: (
+            "::",
+            vec![Token::new(TokenKind::NamespaceAccess, 0, 2)],
         ),
     }
 }
