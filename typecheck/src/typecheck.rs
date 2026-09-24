@@ -11,6 +11,8 @@ pub struct Typechecker<'a> {
     globals: HashMap<String, VariableDefinition<'a>>,
     structs: HashMap<String, StructDefinition<'a>>,
     namespaces: HashMap<String, Namespace<'a>>,
+    enums: HashMap<String, Vec<String>>,
+    type_aliases: HashMap<String, AzulaType<'a>>,
 
     pub errors: Vec<AzulaError>,
 }
@@ -28,7 +30,7 @@ struct StructDefinition<'a> {
     attrs: Vec<(AzulaType<'a>, &'a str)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VariableDefinition<'a> {
     name: String,
     mutable: bool,
@@ -41,6 +43,7 @@ pub struct Namespace<'a> {
     funcs: HashMap<&'a str, FunctionDefinition<'a>>,
 }
 
+#[derive(Clone)]
 pub struct Environment<'a> {
     variable_definitions: HashMap<String, VariableDefinition<'a>>,
 }
@@ -65,6 +68,8 @@ impl<'a> Typechecker<'a> {
             globals: HashMap::new(),
             structs: HashMap::new(),
             namespaces: HashMap::new(),
+            enums: HashMap::new(),
+            type_aliases: HashMap::new(),
             errors: vec![],
         }
     }
@@ -166,6 +171,15 @@ impl<'a> Typechecker<'a> {
 
                         self.namespaces.insert(struc_name, namespace);
                     }
+                    Statement::Enum { name, variants, .. } => {
+                        self.enums.insert(
+                            name.to_string(),
+                            variants.iter().map(|v| v.to_string()).collect(),
+                        );
+                    }
+                    Statement::TypeAlias { name, typ, .. } => {
+                        self.type_aliases.insert(name.to_string(), typ.clone());
+                    }
                     _ => {}
                 }
             }
@@ -231,6 +245,9 @@ impl<'a> Typechecker<'a> {
                     span: span,
                 })
             }
+            Statement::Enum { .. } => Ok(stmt),
+            Statement::TypeAlias { .. } => Ok(stmt),
+            Statement::Import(..) => Ok(stmt),
             _ => unreachable!(),
         }
     }
@@ -255,7 +272,20 @@ impl<'a> Typechecker<'a> {
             }
             Statement::If(..) => self.typecheck_if(stmt, env),
             Statement::While(..) => self.typecheck_while(stmt, env),
+            Statement::For(..) => self.typecheck_for(stmt, env),
+            Statement::Break(span) => Ok((Statement::Break(span), AzulaType::Void)),
+            Statement::Continue(span) => Ok((Statement::Continue(span), AzulaType::Void)),
             Statement::Reassign(..) => self.typecheck_reassign(stmt, env),
+            Statement::Block(stmts) => {
+                let mut checked = vec![];
+                for s in stmts {
+                    match self.typecheck_statement(s, env) {
+                        Ok((s, _)) => checked.push(s),
+                        Err(e) => return Err(e),
+                    }
+                }
+                Ok((Statement::Block(checked), AzulaType::Void))
+            }
             _ => unreachable!("{:?}", stmt),
         }
     }
@@ -344,7 +374,7 @@ impl<'a> Typechecker<'a> {
             };
 
             if type_annotation.is_some() {
-                let type_annotation = type_annotation.clone().unwrap();
+                let type_annotation = self.resolve_type(type_annotation.clone().unwrap());
 
                 if type_annotation != typ {
                     self.errors.push(AzulaError::new(
@@ -386,6 +416,7 @@ impl<'a> Typechecker<'a> {
         env: &mut Environment<'a>,
     ) -> Result<(Statement<'a>, AzulaType<'a>), String> {
         if let Statement::Assign(mutable, name, type_annotation, value, span) = expr {
+            let type_annotation = type_annotation.map(|t| self.resolve_type(t));
             let (expr, typ) = match self.typecheck_expression(value, env) {
                 Ok((expr, value)) => (expr, value),
                 Err(e) => return Err(e),
@@ -426,7 +457,13 @@ impl<'a> Typechecker<'a> {
                     }
                 }
 
-                if type_annotation != typ {
+                let types_compatible = type_annotation == typ
+                    || (matches!(typ, AzulaType::Int) && matches!(type_annotation, AzulaType::SizedSignedInt(_)))
+                    || (matches!(typ, AzulaType::SizedSignedInt(_)) && matches!(type_annotation, AzulaType::Int))
+                    || (matches!(typ, AzulaType::Str) && matches!(type_annotation, AzulaType::Pointer(_)))
+                    || (matches!(typ, AzulaType::Pointer(_)) && matches!(type_annotation, AzulaType::Str));
+
+                if !types_compatible {
                     self.errors.push(AzulaError::new(
                         ErrorType::MismatchedAssignTypes(
                             format!("{:?}", type_annotation),
@@ -439,12 +476,14 @@ impl<'a> Typechecker<'a> {
                 }
             }
 
+            let resolved_typ = if let Some(ann) = type_annotation.clone() { ann } else { typ };
+
             env.add_variable(
                 name.clone(),
                 VariableDefinition {
                     name: name.clone(),
                     mutable,
-                    typ: typ,
+                    typ: resolved_typ.clone(),
                 },
             );
 
@@ -548,7 +587,7 @@ impl<'a> Typechecker<'a> {
         stmt: Statement<'a>,
         env: &mut Environment<'a>,
     ) -> Result<(Statement<'a>, AzulaType<'a>), String> {
-        if let Statement::If(ref expr, ref body, ref span) = stmt {
+        if let Statement::If(ref expr, ref body, ref else_branch, ref span) = stmt {
             let (expr, typ) = match self.typecheck_expression(expr.clone(), env) {
                 Ok((expr, value)) => (expr, value),
                 Err(e) => return Err(e),
@@ -571,7 +610,17 @@ impl<'a> Typechecker<'a> {
                 };
             }
 
-            Ok((Statement::If(expr, stmts, span.clone()), AzulaType::Void))
+            let checked_else = match else_branch {
+                Some(else_stmt) => {
+                    match self.typecheck_statement(else_stmt.as_ref().clone(), env) {
+                        Ok((stmt, _)) => Some(Rc::new(stmt)),
+                        Err(e) => return Err(e),
+                    }
+                }
+                None => None,
+            };
+
+            Ok((Statement::If(expr, stmts, checked_else, span.clone()), AzulaType::Void))
         } else {
             unreachable!()
         }
@@ -606,6 +655,45 @@ impl<'a> Typechecker<'a> {
             }
 
             Ok((Statement::While(expr, stmts, span.clone()), AzulaType::Void))
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn typecheck_for(
+        &mut self,
+        stmt: Statement<'a>,
+        env: &mut Environment<'a>,
+    ) -> Result<(Statement<'a>, AzulaType<'a>), String> {
+        if let Statement::For(ref cond, ref body, ref span) = stmt {
+            let checked_cond = match cond {
+                Some(expr) => {
+                    let (checked, typ) = match self.typecheck_expression(expr.clone(), env) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    };
+                    if typ != AzulaType::Bool {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::NonBoolCondition(format!("{:?}", typ)),
+                            checked.span.start,
+                            checked.span.end,
+                        ));
+                        return Err("Non boolean condition".to_string());
+                    }
+                    Some(checked)
+                }
+                None => None,
+            };
+
+            let mut stmts = vec![];
+            for stmt in body {
+                match self.typecheck_statement(stmt.clone(), env) {
+                    Ok((stmt, _)) => stmts.push(stmt),
+                    Err(e) => return Err(e),
+                };
+            }
+
+            Ok((Statement::For(checked_cond, stmts, span.clone()), AzulaType::Void))
         } else {
             unreachable!()
         }
@@ -722,6 +810,30 @@ impl<'a> Typechecker<'a> {
                     AzulaType::Bool,
                 ));
             }
+            Expression::Negate(exp) => {
+                let (node, typ) = match self.typecheck_expression(exp.deref().clone(), env) {
+                    Ok((node, typ)) => (node, typ),
+                    Err(e) => return Err(e),
+                };
+
+                if typ != AzulaType::Int && typ != AzulaType::Float {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::MismatchedTypes(format!("{:?}", typ), "Int or Float".to_string()),
+                        expr.span.start,
+                        expr.span.end,
+                    ));
+                    return Err("Negate requires numeric type".to_string());
+                }
+
+                return Ok((
+                    ExpressionNode {
+                        expression: Expression::Negate(Rc::new(node)),
+                        typed: typ.clone(),
+                        span: expr.span,
+                    },
+                    typ,
+                ));
+            }
             Expression::Pointer(exp) => {
                 let (node, typ) = match self.typecheck_expression(exp.deref().clone(), env) {
                     Ok((node, typ)) => (node, typ),
@@ -810,6 +922,7 @@ impl<'a> Typechecker<'a> {
                 let return_typ = if array_typ.is_indexable() {
                     match array_typ {
                         AzulaType::Array(nested, _) => nested.deref().clone(),
+                        AzulaType::Str => AzulaType::SizedSignedInt(8),
                         AzulaType::Pointer(nested) => match nested.deref().clone() {
                             AzulaType::Str => AzulaType::SizedSignedInt(8),
                             _ => nested.deref().clone(),
@@ -937,36 +1050,280 @@ impl<'a> Typechecker<'a> {
                 ));
             }
             Expression::NamespaceAccess(ns, identifier) => {
-                let namespace = if let Expression::Identifier(ident) = ns.deref().clone().expression
-                {
-                    let namespace = self.namespaces.get(&ident);
-                    match namespace {
-                        Some(f) => Ok(f.clone()),
-                        None => Err(ident),
-                    }
+                let ns_name = if let Expression::Identifier(ref ident) = ns.deref().expression {
+                    ident.clone()
                 } else {
                     unreachable!()
                 };
 
-                if namespace.is_err() {
-                    return Err("namespace".to_string());
+                // Check if it's an enum variant access
+                if let Some(variants) = self.enums.get(&ns_name).cloned() {
+                    let variant_name = match &identifier.expression {
+                        Expression::Identifier(v) => v.clone(),
+                        _ => unreachable!(),
+                    };
+                    if !variants.contains(&variant_name) {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::UnknownVariant(variant_name.clone(), ns_name.clone()),
+                            identifier.span.start,
+                            identifier.span.end,
+                        ));
+                        return Err(format!("Unknown variant {} on {}", variant_name, ns_name));
+                    }
+                    let typ = AzulaType::Named(ns_name.clone());
+                    return Ok((
+                        ExpressionNode {
+                            expression: Expression::NamespaceAccess(ns, identifier),
+                            typed: typ.clone(),
+                            span: expr.span,
+                        },
+                        typ,
+                    ));
                 }
 
-                let namespace = namespace.unwrap();
+                let namespace = self.namespaces.get(&ns_name);
+                let namespace = match namespace {
+                    Some(f) => f.clone(),
+                    None => return Err("namespace".to_string()),
+                };
 
-                let mut ns = ns.deref().clone();
-                ns.typed = AzulaType::Named(namespace.name.clone());
+                let mut ns_node = ns.deref().clone();
+                ns_node.typed = AzulaType::Named(namespace.name.clone());
 
                 return Ok((
                     ExpressionNode {
-                        expression: Expression::NamespaceAccess(Rc::new(ns), identifier),
+                        expression: Expression::NamespaceAccess(Rc::new(ns_node), identifier),
                         typed: AzulaType::Infer,
                         span: expr.span,
                     },
                     AzulaType::Infer,
                 ));
             }
+            Expression::Match(scrutinee, arms) => {
+                self.typecheck_match(scrutinee, arms, expr.span, env)
+            }
+            Expression::Cast(_, _) => self.typecheck_cast_expression(expr, env),
+            Expression::Null => Ok((
+                ExpressionNode { expression: Expression::Null, typed: AzulaType::Str, span: expr.span },
+                AzulaType::Str,
+            )),
+            Expression::Alloc(inner) => {
+                let (inner_node, inner_typ) = self.typecheck_expression(inner.as_ref().clone(), env)?;
+                let ptr_type = AzulaType::Pointer(Rc::new(inner_typ));
+                Ok((
+                    ExpressionNode {
+                        expression: Expression::Alloc(Rc::new(inner_node)),
+                        typed: ptr_type.clone(),
+                        span: expr.span,
+                    },
+                    ptr_type,
+                ))
+            }
+            Expression::Block(stmts, final_expr) => {
+                let mut new_env = env.clone();
+                let mut new_stmts = vec![];
+                for stmt in stmts {
+                    match self.typecheck_statement(stmt, &mut new_env) {
+                        Ok((s, _)) => new_stmts.push(s),
+                        Err(e) => return Err(e),
+                    }
+                }
+                match final_expr {
+                    Some(fe) => {
+                        let (fe_node, fe_type) =
+                            self.typecheck_expression(fe.as_ref().clone(), &new_env)?;
+                        Ok((
+                            ExpressionNode {
+                                expression: Expression::Block(new_stmts, Some(Rc::new(fe_node))),
+                                typed: fe_type.clone(),
+                                span: expr.span,
+                            },
+                            fe_type,
+                        ))
+                    }
+                    None => Ok((
+                        ExpressionNode {
+                            expression: Expression::Block(new_stmts, None),
+                            typed: AzulaType::Void,
+                            span: expr.span,
+                        },
+                        AzulaType::Void,
+                    )),
+                }
+            }
         }
+    }
+
+    fn typecheck_match(
+        &mut self,
+        scrutinee: Rc<ExpressionNode<'a>>,
+        arms: Vec<(MatchPattern<'a>, ExpressionNode<'a>)>,
+        span: Span,
+        env: &Environment<'a>,
+    ) -> Result<(ExpressionNode<'a>, AzulaType<'a>), String> {
+        let (scrut_node, scrut_type) = match self.typecheck_expression(scrutinee.deref().clone(), env) {
+            Ok(x) => x,
+            Err(e) => return Err(e),
+        };
+
+        // Dispatch based on scrutinee type: enum match or integer match
+        let is_integer_match = matches!(scrut_type, AzulaType::Int | AzulaType::SizedSignedInt(_) | AzulaType::SizedUnsignedInt(_));
+
+        let (enum_name, variants) = if is_integer_match {
+            (String::new(), vec![])
+        } else {
+            let name = match &scrut_type {
+                AzulaType::Named(n) => n.clone(),
+                _ => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::MatchOnNonEnum(format!("{:?}", scrut_type)),
+                        scrut_node.span.start,
+                        scrut_node.span.end,
+                    ));
+                    return Err("match on non-enum".to_string());
+                }
+            };
+            let vars = match self.enums.get(&name).cloned() {
+                Some(v) => v,
+                None => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::UnknownEnum(name.clone()),
+                        scrut_node.span.start,
+                        scrut_node.span.end,
+                    ));
+                    return Err(format!("Unknown enum {}", name));
+                }
+            };
+            (name, vars)
+        };
+
+        let mut covered: Vec<String> = vec![];
+        let mut has_wildcard = false;
+        let mut result_type: Option<AzulaType<'a>> = None;
+        let mut new_arms = vec![];
+
+        for (pattern, body) in arms {
+            match &pattern {
+                MatchPattern::Wildcard => {
+                    has_wildcard = true;
+                }
+                MatchPattern::Integer(_) => {
+                    if !is_integer_match {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::MatchOnNonEnum(format!("{:?}", scrut_type)),
+                            body.span.start,
+                            body.span.end,
+                        ));
+                        return Err("integer pattern on non-integer scrutinee".to_string());
+                    }
+                }
+                MatchPattern::Variant(pat_enum, variant) => {
+                    if *pat_enum != enum_name.as_str() {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::UnknownEnum(pat_enum.to_string()),
+                            body.span.start,
+                            body.span.end,
+                        ));
+                        return Err(format!("Unknown enum {}", pat_enum));
+                    }
+                    if !variants.contains(&variant.to_string()) {
+                        self.errors.push(AzulaError::new(
+                            ErrorType::UnknownVariant(variant.to_string(), enum_name.clone()),
+                            body.span.start,
+                            body.span.end,
+                        ));
+                        return Err(format!("Unknown variant {}", variant));
+                    }
+                    covered.push(variant.to_string());
+                }
+            }
+
+            let (body_node, body_type) = match self.typecheck_expression(body, env) {
+                Ok(x) => x,
+                Err(e) => return Err(e),
+            };
+
+            if let Some(ref rt) = result_type.clone() {
+                if *rt != body_type {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::MismatchedTypes(
+                            format!("{:?}", rt),
+                            format!("{:?}", body_type),
+                        ),
+                        body_node.span.start,
+                        body_node.span.end,
+                    ));
+                    return Err("mismatched arm types".to_string());
+                }
+            } else {
+                result_type = Some(body_type);
+            }
+
+            new_arms.push((pattern, body_node));
+        }
+
+        // Exhaustiveness: enum match requires all variants covered or wildcard;
+        // integer match just requires a wildcard (infinite domain).
+        if !has_wildcard && !is_integer_match {
+            let uncovered: Vec<_> = variants.iter().filter(|v| !covered.contains(v)).collect();
+            if !uncovered.is_empty() {
+                self.errors.push(AzulaError::new(
+                    ErrorType::NonExhaustiveMatch(enum_name.clone()),
+                    span.start,
+                    span.end,
+                ));
+                return Err("non-exhaustive match".to_string());
+            }
+        }
+
+        let typ = result_type.unwrap_or(AzulaType::Void);
+        Ok((
+            ExpressionNode {
+                expression: Expression::Match(Rc::new(scrut_node), new_arms),
+                typed: typ.clone(),
+                span,
+            },
+            typ,
+        ))
+    }
+
+    fn resolve_type(&self, typ: AzulaType<'a>) -> AzulaType<'a> {
+        match &typ {
+            AzulaType::Named(n) => {
+                if let Some(resolved) = self.type_aliases.get(n.as_str()) {
+                    self.resolve_type(resolved.clone())
+                } else {
+                    typ
+                }
+            }
+            AzulaType::Pointer(inner) => {
+                AzulaType::Pointer(Rc::new(self.resolve_type(inner.as_ref().clone())))
+            }
+            AzulaType::Array(inner, size) => {
+                AzulaType::Array(Rc::new(self.resolve_type(inner.as_ref().clone())), *size)
+            }
+            _ => typ,
+        }
+    }
+
+    fn typecheck_cast_expression(
+        &mut self,
+        expr: ExpressionNode<'a>,
+        env: &Environment<'a>,
+    ) -> Result<(ExpressionNode<'a>, AzulaType<'a>), String> {
+        if let Expression::Cast(ref inner, ref target_type) = expr.expression {
+            let (inner_node, _) = self.typecheck_expression(inner.deref().clone(), env)?;
+            let typ = target_type.clone();
+            return Ok((
+                ExpressionNode {
+                    expression: Expression::Cast(Rc::new(inner_node), typ.clone()),
+                    typed: typ.clone(),
+                    span: expr.span,
+                },
+                typ,
+            ));
+        }
+        unreachable!()
     }
 
     fn typecheck_infix_expression(
@@ -1002,8 +1359,22 @@ impl<'a> Typechecker<'a> {
                 Operator::Gte => vec![AzulaType::Int, AzulaType::Float],
             };
 
+            // Enum types lower to i64 and pointer types lower to ptr — both compare as Int
+            let effective_left = match &left_typ {
+                AzulaType::Named(n) if self.enums.contains_key(n.as_str()) => AzulaType::Int,
+                AzulaType::Pointer(_) | AzulaType::Str => AzulaType::Int,
+                AzulaType::SizedSignedInt(_) => AzulaType::Int,
+                _ => left_typ.clone(),
+            };
+            let effective_right = match &right_typ {
+                AzulaType::Named(n) if self.enums.contains_key(n.as_str()) => AzulaType::Int,
+                AzulaType::Pointer(_) | AzulaType::Str => AzulaType::Int,
+                AzulaType::SizedSignedInt(_) => AzulaType::Int,
+                _ => right_typ.clone(),
+            };
+
             let allowed = allowed.get(operator).unwrap();
-            if !allowed.contains(&left_typ) {
+            if !allowed.contains(&effective_left) {
                 self.errors.push(AzulaError::new(
                     ErrorType::NonOperatorType(
                         format!("{:?}", left_typ),
@@ -1015,7 +1386,7 @@ impl<'a> Typechecker<'a> {
                 return Err("cannot use operator with type".to_string());
             }
 
-            if !allowed.contains(&right_typ) {
+            if !allowed.contains(&effective_right) {
                 self.errors.push(AzulaError::new(
                     ErrorType::NonOperatorType(
                         format!("{:?}", right_typ),
@@ -1239,17 +1610,13 @@ impl<'a> Typechecker<'a> {
         }
 
         if let Expression::StructAccess(ref struc, ref right) = expr.expression {
-            let (_, resolved_type) = self
+            let (typechecked_struc, resolved_type) = self
                 .typecheck_expression(struc.deref().clone(), env)
                 .unwrap();
 
             return ExpressionNode {
                 expression: Expression::StructAccess(
-                    Rc::new(ExpressionNode {
-                        expression: struc.expression.clone(),
-                        typed: resolved_type.clone(),
-                        span: struc.span.clone(),
-                    }),
+                    Rc::new(typechecked_struc),
                     right.clone(),
                 ),
                 typed: resolved_type.clone(),
@@ -1276,6 +1643,131 @@ impl<'a> Typechecker<'a> {
                             args: vec![],
                             varargs: true,
                             returns: AzulaType::Void,
+                        })
+                    } else if s == "strlen" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "s".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "strcmp" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "a".to_string()), (AzulaType::Str, "b".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "malloc" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Int, "size".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "memcpy" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![
+                                (AzulaType::Str, "dest".to_string()),
+                                (AzulaType::Str, "src".to_string()),
+                                (AzulaType::Int, "n".to_string()),
+                            ],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "free" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Void,
+                        })
+                    } else if s == "realloc" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string()), (AzulaType::Int, "size".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "ptr_read_int" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "ptr_write_int" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string()), (AzulaType::Int, "val".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Void,
+                        })
+                    } else if s == "ptr_read_str" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "ptr_write_str" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string()), (AzulaType::Str, "val".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Void,
+                        })
+                    } else if s == "ptr_add" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "ptr".to_string()), (AzulaType::Int, "offset".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "fopen" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "path".to_string()), (AzulaType::Str, "mode".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Str,
+                        })
+                    } else if s == "fclose" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "file".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "fseek" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![
+                                (AzulaType::Str, "file".to_string()),
+                                (AzulaType::Int, "offset".to_string()),
+                                (AzulaType::Int, "whence".to_string()),
+                            ],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "ftell" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![(AzulaType::Str, "file".to_string())],
+                            varargs: false,
+                            returns: AzulaType::Int,
+                        })
+                    } else if s == "fread" {
+                        Ok(FunctionDefinition {
+                            name: s,
+                            args: vec![
+                                (AzulaType::Str, "buf".to_string()),
+                                (AzulaType::Int, "size".to_string()),
+                                (AzulaType::Int, "count".to_string()),
+                                (AzulaType::Str, "file".to_string()),
+                            ],
+                            varargs: false,
+                            returns: AzulaType::Int,
                         })
                     } else {
                         Err(s)
@@ -1649,5 +2141,151 @@ mod tests {
 
         assert_eq!(typ, AzulaType::Int);
         assert_eq!(expr.typed, AzulaType::Int);
+    }
+
+    #[test]
+    fn test_enum_registration() {
+        let root = Statement::Root(vec![Statement::Enum {
+            name: "Color",
+            variants: vec!["Red", "Green", "Blue"],
+            span: Span { start: 0, end: 1 },
+        }]);
+        let mut typechecker = Typechecker::new(root);
+        typechecker.typecheck().unwrap();
+        assert!(typechecker.enums.contains_key("Color"));
+        assert_eq!(
+            typechecker.enums["Color"],
+            vec!["Red", "Green", "Blue"]
+        );
+    }
+
+    #[test]
+    fn test_namespace_access_enum_variant() {
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        typechecker
+            .enums
+            .insert("Color".to_string(), vec!["Red".to_string(), "Green".to_string()]);
+
+        let node = ExpressionNode {
+            expression: Expression::NamespaceAccess(
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("Color".to_string()),
+                    typed: AzulaType::Infer,
+                    span: Span { start: 0, end: 5 },
+                }),
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("Green".to_string()),
+                    typed: AzulaType::Infer,
+                    span: Span { start: 7, end: 12 },
+                }),
+            ),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 12 },
+        };
+
+        let env = Environment::new();
+        let (expr, typ) = typechecker.typecheck_expression(node, &env).unwrap();
+        assert_eq!(typ, AzulaType::Named("Color".to_string()));
+        assert_eq!(expr.typed, AzulaType::Named("Color".to_string()));
+        assert!(typechecker.errors.is_empty());
+    }
+
+    #[test]
+    fn test_match_expression() {
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        typechecker
+            .enums
+            .insert("Color".to_string(), vec!["Red".to_string(), "Green".to_string()]);
+
+        let mut env = Environment::new();
+        env.add_variable(
+            "c".to_string(),
+            VariableDefinition {
+                name: "c".to_string(),
+                mutable: false,
+                typ: AzulaType::Named("Color".to_string()),
+            },
+        );
+
+        let node = ExpressionNode {
+            expression: Expression::Match(
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("c".to_string()),
+                    typed: AzulaType::Named("Color".to_string()),
+                    span: Span { start: 0, end: 1 },
+                }),
+                vec![
+                    (
+                        MatchPattern::Variant("Color", "Red"),
+                        ExpressionNode {
+                            expression: Expression::Integer(1),
+                            typed: AzulaType::Int,
+                            span: Span { start: 0, end: 1 },
+                        },
+                    ),
+                    (
+                        MatchPattern::Variant("Color", "Green"),
+                        ExpressionNode {
+                            expression: Expression::Integer(2),
+                            typed: AzulaType::Int,
+                            span: Span { start: 0, end: 1 },
+                        },
+                    ),
+                ],
+            ),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 10 },
+        };
+
+        let (expr, typ) = typechecker.typecheck_expression(node, &env).unwrap();
+        assert_eq!(typ, AzulaType::Int);
+        assert_eq!(expr.typed, AzulaType::Int);
+        assert!(typechecker.errors.is_empty());
+    }
+
+    #[test]
+    fn test_match_non_exhaustive() {
+        let mut typechecker = Typechecker::new(Statement::Root(vec![]));
+        typechecker.enums.insert(
+            "Color".to_string(),
+            vec!["Red".to_string(), "Green".to_string(), "Blue".to_string()],
+        );
+
+        let mut env = Environment::new();
+        env.add_variable(
+            "c".to_string(),
+            VariableDefinition {
+                name: "c".to_string(),
+                mutable: false,
+                typ: AzulaType::Named("Color".to_string()),
+            },
+        );
+
+        let node = ExpressionNode {
+            expression: Expression::Match(
+                Rc::new(ExpressionNode {
+                    expression: Expression::Identifier("c".to_string()),
+                    typed: AzulaType::Named("Color".to_string()),
+                    span: Span { start: 0, end: 1 },
+                }),
+                vec![(
+                    MatchPattern::Variant("Color", "Red"),
+                    ExpressionNode {
+                        expression: Expression::Integer(1),
+                        typed: AzulaType::Int,
+                        span: Span { start: 0, end: 1 },
+                    },
+                )],
+            ),
+            typed: AzulaType::Infer,
+            span: Span { start: 0, end: 10 },
+        };
+
+        let result = typechecker.typecheck_expression(node, &env);
+        assert!(result.is_err());
+        assert!(matches!(
+            typechecker.errors[0].error_type,
+            ErrorType::NonExhaustiveMatch(_)
+        ));
     }
 }

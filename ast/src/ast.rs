@@ -22,7 +22,7 @@ pub enum Statement<'a> {
         Span,
     ),
     ExpressionStatement(ExpressionNode<'a>, Span),
-    If(ExpressionNode<'a>, Body<'a>, Span),
+    If(ExpressionNode<'a>, Body<'a>, Option<Rc<Statement<'a>>>, Span),
     ExternFunction {
         name: &'a str,
         varargs: bool,
@@ -32,6 +32,9 @@ pub enum Statement<'a> {
     },
     Reassign(ExpressionNode<'a>, ExpressionNode<'a>, Span),
     While(ExpressionNode<'a>, Body<'a>, Span),
+    For(Option<ExpressionNode<'a>>, Body<'a>, Span),
+    Break(Span),
+    Continue(Span),
     Struct {
         name: &'a str,
         attributes: Vec<TypedIdentifier<'a>>,
@@ -43,6 +46,17 @@ pub enum Statement<'a> {
         funcs: Vec<Statement<'a>>,
         span: Span,
     },
+    Enum {
+        name: &'a str,
+        variants: Vec<&'a str>,
+        span: Span,
+    },
+    TypeAlias {
+        name: &'a str,
+        typ: AzulaType<'a>,
+        span: Span,
+    },
+    Import(String, Span),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,12 +72,31 @@ pub enum Expression<'a> {
         args: Vec<ExpressionNode<'a>>,
     },
     Not(Rc<ExpressionNode<'a>>),
+    Negate(Rc<ExpressionNode<'a>>),
     Pointer(Rc<ExpressionNode<'a>>),
     Array(Vec<ExpressionNode<'a>>),
     ArrayAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
     StructInitialisation(Rc<ExpressionNode<'a>>, Vec<(&'a str, ExpressionNode<'a>)>),
     StructAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
     NamespaceAccess(Rc<ExpressionNode<'a>>, Rc<ExpressionNode<'a>>),
+    Match(
+        Rc<ExpressionNode<'a>>,
+        Vec<(MatchPattern<'a>, ExpressionNode<'a>)>,
+    ),
+    Cast(Rc<ExpressionNode<'a>>, AzulaType<'a>),
+    Alloc(Rc<ExpressionNode<'a>>),
+    Null,
+    Block(Vec<Statement<'a>>, Option<Rc<ExpressionNode<'a>>>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum MatchPattern<'a> {
+    /// EnumName::Variant
+    Variant(&'a str, &'a str),
+    /// integer or char literal
+    Integer(i64),
+    /// _
+    Wildcard,
 }
 
 #[derive(Debug, PartialEq, Clone)]

@@ -9,4 +9,4 @@ edition = "2021"
 azula_codegen = { path = "../codegen" }
 azula_ir = { path = "../azula_ir" }
 azula_type = { path = "../azula_type" }
-inkwell = { version = "0.1.0", features = ["llvm13-0"] }
+inkwell = { version = "0.9.0", features = ["llvm18-1"] }

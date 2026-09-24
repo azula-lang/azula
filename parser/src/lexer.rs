@@ -21,8 +21,11 @@ impl<'a> Lexer<'a> {
     }
 
     fn next(&mut self) -> Option<char> {
-        self.index += 1;
-        self.peekable.next()
+        let c = self.peekable.next();
+        if let Some(c) = c {
+            self.index += c.len_utf8();
+        }
+        c
     }
 
     fn next_token(&mut self) -> Option<Token<'a>> {
@@ -73,6 +76,10 @@ impl<'a> Lexer<'a> {
                     Some('=') => {
                         self.next();
                         Token::new(TokenKind::Equal, start, self.index)
+                    }
+                    Some('>') => {
+                        self.next();
+                        Token::new(TokenKind::FatArrow, start, self.index)
                     }
                     _ => Token::new(TokenKind::Assign, start, self.index),
                 },
@@ -189,12 +196,22 @@ impl<'a> Lexer<'a> {
             "true" => Token::new(TokenKind::True, start, self.index),
             "false" => Token::new(TokenKind::False, start, self.index),
             "if" => Token::new(TokenKind::If, start, self.index),
+            "else" => Token::new(TokenKind::Else, start, self.index),
+            "break" => Token::new(TokenKind::Break, start, self.index),
+            "continue" => Token::new(TokenKind::Continue, start, self.index),
             "extern" => Token::new(TokenKind::Extern, start, self.index),
             "varargs" => Token::new(TokenKind::VarArgs, start, self.index),
             "while" => Token::new(TokenKind::While, start, self.index),
             "struct" => Token::new(TokenKind::Struct, start, self.index),
             "impl" => Token::new(TokenKind::Impl, start, self.index),
             "for" => Token::new(TokenKind::For, start, self.index),
+            "enum" => Token::new(TokenKind::Enum, start, self.index),
+            "match" => Token::new(TokenKind::Match, start, self.index),
+            "as" => Token::new(TokenKind::As, start, self.index),
+            "alloc" => Token::new(TokenKind::Alloc, start, self.index),
+            "null" => Token::new(TokenKind::Null, start, self.index),
+            "type" => Token::new(TokenKind::Type, start, self.index),
+            "import" => Token::new(TokenKind::Import, start, self.index),
             _ => Token::new(TokenKind::Identifier(value), start, self.index),
         }
     }

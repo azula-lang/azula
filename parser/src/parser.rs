@@ -18,9 +18,10 @@ const LESS_GREATER: OperatorPrecedence = 3;
 const SUM: OperatorPrecedence = 4;
 const PRODUCT: OperatorPrecedence = 5;
 const PREFIX: OperatorPrecedence = 6;
-const STRUCT_INIT: OperatorPrecedence = 7;
-const CALL: OperatorPrecedence = 8;
-const ACCESS: OperatorPrecedence = 9;
+const CAST: OperatorPrecedence = 7;
+const STRUCT_INIT: OperatorPrecedence = 8;
+const CALL: OperatorPrecedence = 9;
+const ACCESS: OperatorPrecedence = 10;
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -53,11 +54,22 @@ impl<'a> Parser<'a> {
             TokenKind::Function => self.parse_function(),
             TokenKind::Extern => self.parse_extern_function(),
             TokenKind::Struct => self.parse_struct(),
+            TokenKind::Enum => self.parse_enum(),
+            TokenKind::Type => self.parse_type_alias(),
             TokenKind::Return => self.parse_return(),
             TokenKind::Var => self.parse_assign(true),
             TokenKind::Const => self.parse_assign(false),
             TokenKind::If => self.parse_if(),
             TokenKind::While => self.parse_while(),
+            TokenKind::For => self.parse_for(),
+            TokenKind::Break => {
+                let tok = self.lexer.next().unwrap();
+                Some(Statement::Break(Span { start: tok.span.start, end: tok.span.end }))
+            }
+            TokenKind::Continue => {
+                let tok = self.lexer.next().unwrap();
+                Some(Statement::Continue(Span { start: tok.span.start, end: tok.span.end }))
+            }
             TokenKind::Impl => self.parse_impl(),
             TokenKind::SemiColon => {
                 self.lexer.next();
@@ -67,6 +79,7 @@ impl<'a> Parser<'a> {
                 self.lexer.next();
                 None
             }
+            TokenKind::Import => self.parse_import(),
             _ => {
                 let expr = match self.parse_expression(LOWEST, true) {
                     Some(node) => node,
@@ -263,6 +276,95 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_import(&mut self) -> Option<Statement<'a>> {
+        let start = self.lexer.next()?.span.start; // consume `import`
+        let tok = self.lexer.next()?;
+        let path = if let TokenKind::String(s) = tok.kind {
+            s.to_string()
+        } else {
+            self.errors.push(AzulaError::new(
+                ErrorType::ExpectedToken("String".to_string(), Some(format!("{:?}", tok.kind))),
+                tok.span.start,
+                tok.span.end,
+            ));
+            return None;
+        };
+        let end = tok.span.end;
+        Some(Statement::Import(path, Span { start, end }))
+    }
+
+    fn parse_type_alias(&mut self) -> Option<Statement<'a>> {
+        let start = self.lexer.next()?.span.start; // consume `type`
+        let name = if let TokenKind::Identifier(n) = self.lexer.next()?.kind { n } else { return None; };
+        self.expect_peek(TokenKind::Assign);
+        self.lexer.next(); // consume =
+        let typ = self.parse_type();
+        let end = self.lexer.peek().map(|t| t.span.end).unwrap_or(start);
+        self.expect_peek(TokenKind::SemiColon);
+        self.lexer.next(); // consume ;
+        Some(Statement::TypeAlias { name, typ, span: Span { start, end } })
+    }
+
+    fn parse_enum(&mut self) -> Option<Statement<'a>> {
+        // enum
+        let start_token = self.lexer.next().unwrap();
+
+        // Parse name of the enum
+        let tok = self.lexer.next();
+        let ident = match tok {
+            Some(v) if matches!(v.kind, TokenKind::Identifier(_)) => {
+                if let TokenKind::Identifier(val) = v.kind {
+                    val
+                } else {
+                    "anon"
+                }
+            }
+            _ => return None,
+        };
+
+        if !self.expect_peek(TokenKind::BraceOpen) {
+            return None;
+        }
+        self.lexer.next();
+
+        // Parse comma-separated variant names until the closing brace
+        let mut variants = vec![];
+        while let Some(tok) = self.lexer.peek() {
+            if tok.kind == TokenKind::BraceClose {
+                break;
+            }
+
+            let tok = self.lexer.next().unwrap();
+            match tok.kind {
+                TokenKind::Identifier(val) => variants.push(val),
+                TokenKind::Comma => continue,
+                _ => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::ExpectedToken(
+                            format!("{:?}", TokenKind::Identifier("")),
+                            Some(format!("{:?}", tok.kind)),
+                        ),
+                        tok.span.start,
+                        tok.span.end,
+                    ));
+                    return None;
+                }
+            }
+        }
+
+        // Consume the closing brace
+        self.lexer.next();
+
+        Some(Statement::Enum {
+            name: ident,
+            variants,
+            span: Span {
+                start: start_token.span.start,
+                end: start_token.span.end,
+            },
+        })
+    }
+
     fn parse_return(&mut self) -> Option<Statement<'a>> {
         // return
         let start_token = self.lexer.next().unwrap();
@@ -411,9 +513,38 @@ impl<'a> Parser<'a> {
 
         let end_token = self.lexer.next().unwrap();
 
+        // Check for optional else / else if
+        let else_branch = if let Some(tok) = self.lexer.peek() {
+            if tok.kind == TokenKind::Else {
+                self.lexer.next(); // consume `else`
+                if let Some(next) = self.lexer.peek() {
+                    if next.kind == TokenKind::If {
+                        // else if — parse another full if statement
+                        self.parse_if().map(|s| Rc::new(s))
+                    } else {
+                        // else { ... }
+                        if !self.expect_peek(TokenKind::BraceOpen) {
+                            return None;
+                        }
+                        self.lexer.next();
+                        let else_body = self.parse_block(TokenKind::BraceClose);
+                        self.lexer.next();
+                        Some(Rc::new(Statement::Block(else_body)))
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Some(Statement::If(
             expr.unwrap(),
             body,
+            else_branch,
             Span {
                 start: start_token.span.start,
                 end: end_token.span.end,
@@ -439,6 +570,37 @@ impl<'a> Parser<'a> {
 
         Some(Statement::While(
             expr.unwrap(),
+            body,
+            Span {
+                start: start_token.span.start,
+                end: end_token.span.end,
+            },
+        ))
+    }
+
+    fn parse_for(&mut self) -> Option<Statement<'a>> {
+        // for [condition] { ... }
+        let start_token = self.lexer.next().unwrap();
+
+        // Infinite loop if next token is `{`
+        let cond = if self.lexer.peek().map(|t| t.kind == TokenKind::BraceOpen).unwrap_or(false) {
+            None
+        } else {
+            Some(self.parse_expression(LOWEST, false)?)
+        };
+
+        if !self.expect_peek(TokenKind::BraceOpen) {
+            return None;
+        }
+
+        self.lexer.next();
+
+        let body = self.parse_block(TokenKind::BraceClose);
+
+        let end_token = self.lexer.next().unwrap();
+
+        Some(Statement::For(
+            cond,
             body,
             Span {
                 start: start_token.span.start,
@@ -735,6 +897,26 @@ impl<'a> Parser<'a> {
                     end: tok.span.end,
                 },
             }),
+            TokenKind::Char(s) => {
+                let ascii = if s.starts_with('\\') {
+                    match s.chars().nth(1) {
+                        Some('n') => 10,
+                        Some('t') => 9,
+                        Some('r') => 13,
+                        Some('0') => 0,
+                        Some('\\') => 92,
+                        Some('\'') => 39,
+                        _ => 0,
+                    }
+                } else {
+                    s.chars().next().map(|c| c as i64).unwrap_or(0)
+                };
+                Some(ExpressionNode {
+                    expression: Expression::Integer(ascii),
+                    typed: AzulaType::Int,
+                    span: Span { start: tok.span.start, end: tok.span.end },
+                })
+            }
             TokenKind::String(val) => {
                 let transformed = match string_transform(val) {
                     Ok(str) => str,
@@ -785,6 +967,18 @@ impl<'a> Parser<'a> {
                     },
                 })
             }
+            TokenKind::Minus => {
+                let expr = self.parse_expression(PREFIX, allow_struct_init).unwrap();
+
+                Some(ExpressionNode {
+                    expression: Expression::Negate(Rc::new(expr.clone())),
+                    typed: AzulaType::Infer,
+                    span: Span {
+                        start: tok.span.start,
+                        end: expr.span.end,
+                    },
+                })
+            }
             TokenKind::Ampersand => {
                 let expr = self.parse_expression(PREFIX, true).unwrap();
 
@@ -798,6 +992,24 @@ impl<'a> Parser<'a> {
                 })
             }
             TokenKind::SquareOpen => self.parse_array(tok),
+            TokenKind::Match => self.parse_match(tok),
+            TokenKind::Null => Some(ExpressionNode {
+                expression: Expression::Null,
+                typed: AzulaType::Str,
+                span: Span { start: tok.span.start, end: tok.span.end },
+            }),
+            TokenKind::Alloc => {
+                self.expect_peek(TokenKind::BracketOpen);
+                self.lexer.next(); // consume (
+                let inner = self.parse_expression(LOWEST, true)?;
+                self.expect_peek(TokenKind::BracketClose);
+                self.lexer.next(); // consume )
+                Some(ExpressionNode {
+                    span: Span { start: tok.span.start, end: inner.span.end },
+                    typed: AzulaType::Pointer(Rc::new(inner.typed.clone())),
+                    expression: Expression::Alloc(Rc::new(inner)),
+                })
+            }
             _ => {
                 self.errors.push(AzulaError::new(
                     ErrorType::ExpectedExpression(format!("{:?}", tok.kind)),
@@ -880,6 +1092,16 @@ impl<'a> Parser<'a> {
         let kind = operator.kind.clone();
 
         match kind {
+            TokenKind::As => {
+                self.lexer.next(); // consume `as`
+                let typ = self.parse_type();
+                let span = Span { start: left.span.start, end: left.span.end };
+                return Some(ExpressionNode {
+                    expression: Expression::Cast(Rc::new(left), typ.clone()),
+                    typed: typ,
+                    span,
+                });
+            }
             TokenKind::Dot => self.parse_struct_access(left),
             TokenKind::NamespaceAccess => self.parse_namespace_access(left),
             TokenKind::BracketOpen => self.parse_function_call(left),
@@ -1016,8 +1238,12 @@ impl<'a> Parser<'a> {
             }
         }
         while peek == TokenKind::Comma {
-            // TODO allow trailing comma
             self.lexer.next();
+            if let Some(next_peek) = self.lexer.peek() {
+                if next_peek.kind == TokenKind::SquareClose {
+                    break;
+                }
+            }
             if let Some(expr) = self.parse_expression(LOWEST, true) {
                 expressions.push(expr);
             }
@@ -1031,6 +1257,240 @@ impl<'a> Parser<'a> {
         Some(ExpressionNode {
             expression: Expression::Array(expressions.clone()),
             typed: AzulaType::Array(Rc::new(AzulaType::Infer), Some(expressions.len())),
+            span: Span {
+                start: tok.span.start,
+                end: close.span.end,
+            },
+        })
+    }
+
+    /// Parse a block expression `{ stmts...; final_expr }`.
+    /// The opening `{` has already been consumed by the caller;
+    /// `start` is its source position (for the resulting span).
+    fn parse_block_expr(&mut self, start: usize) -> Option<ExpressionNode<'a>> {
+        let mut stmts: Vec<Statement<'a>> = vec![];
+        let mut final_expr: Option<ExpressionNode<'a>> = None;
+
+        loop {
+            // Skip semicolons and comments
+            loop {
+                match self.lexer.peek().map(|t| t.kind.clone()) {
+                    Some(TokenKind::SemiColon) | Some(TokenKind::Comment) => {
+                        self.lexer.next();
+                    }
+                    _ => break,
+                }
+            }
+
+            // End of block (void block or trailing semicolon)
+            if self
+                .lexer
+                .peek()
+                .map(|t| t.kind == TokenKind::BraceClose || t.kind == TokenKind::EOF)
+                .unwrap_or(true)
+            {
+                break;
+            }
+
+            // Statement-starting keywords
+            let is_stmt_kw = self
+                .lexer
+                .peek()
+                .map(|t| {
+                    matches!(
+                        t.kind,
+                        TokenKind::Var
+                            | TokenKind::Const
+                            | TokenKind::If
+                            | TokenKind::While
+                            | TokenKind::Return
+                            | TokenKind::Break
+                            | TokenKind::Continue
+                            | TokenKind::Function
+                    )
+                })
+                .unwrap_or(false);
+
+            if is_stmt_kw {
+                if let Some(s) = self.parse_statement() {
+                    stmts.push(s);
+                }
+                continue;
+            }
+
+            // Otherwise parse an expression and look at what follows
+            let expr = self.parse_expression(LOWEST, true)?;
+
+            match self.lexer.peek().map(|t| t.kind.clone()) {
+                Some(TokenKind::Assign) => {
+                    // reassignment: expr = rhs;
+                    if let Some(s) = self.parse_reassign(expr) {
+                        stmts.push(s);
+                    }
+                }
+                Some(TokenKind::SemiColon) => {
+                    // expression statement
+                    let span = expr.span.clone();
+                    self.lexer.next(); // consume ;
+                    stmts.push(Statement::ExpressionStatement(expr, span));
+                }
+                Some(TokenKind::BraceClose) | None => {
+                    // final expression — no semicolon
+                    final_expr = Some(expr);
+                    break;
+                }
+                Some(other) => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::ExpectedToken(
+                            "`;` or `}`".to_string(),
+                            Some(format!("{:?}", other)),
+                        ),
+                        self.lexer.peek().map(|t| t.span.start).unwrap_or(0),
+                        self.lexer.peek().map(|t| t.span.end).unwrap_or(0),
+                    ));
+                    return None;
+                }
+            }
+        }
+
+        // Consume the closing `}`
+        if !self.expect_peek(TokenKind::BraceClose) {
+            return None;
+        }
+        let close = self.lexer.next().unwrap();
+
+        let typ = if final_expr.is_some() {
+            AzulaType::Infer
+        } else {
+            AzulaType::Void
+        };
+
+        Some(ExpressionNode {
+            expression: Expression::Block(stmts, final_expr.map(Rc::new)),
+            typed: typ,
+            span: Span {
+                start,
+                end: close.span.end,
+            },
+        })
+    }
+
+    fn parse_match(&mut self, tok: Token<'a>) -> Option<ExpressionNode<'a>> {
+        let scrutinee = self.parse_expression(LOWEST, false)?;
+
+        if !self.expect_peek(TokenKind::BraceOpen) {
+            return None;
+        }
+        self.lexer.next(); // consume {
+
+        let mut arms = vec![];
+
+        loop {
+            // skip trailing commas / whitespace between arms
+            while let Some(peek) = self.lexer.peek() {
+                if peek.kind == TokenKind::Comma {
+                    self.lexer.next();
+                } else {
+                    break;
+                }
+            }
+
+            if let Some(peek) = self.lexer.peek() {
+                if peek.kind == TokenKind::BraceClose {
+                    break;
+                }
+            } else {
+                self.errors.push(AzulaError::new(
+                    ErrorType::UnexpectedEOF,
+                    self.source.len() - 2,
+                    self.source.len() - 1,
+                ));
+                return None;
+            }
+
+            // parse pattern: `_`, integer literal, char literal, or `IDENT::IDENT`
+            let pat_tok = self.lexer.next().unwrap();
+            let pattern = match &pat_tok.kind {
+                TokenKind::Identifier(name) if *name == "_" => MatchPattern::Wildcard,
+                TokenKind::Integer(n) => MatchPattern::Integer(*n),
+                TokenKind::Char(s) => {
+                    let ascii = if s.starts_with('\\') {
+                        match s.chars().nth(1) {
+                            Some('n') => 10,
+                            Some('t') => 9,
+                            Some('r') => 13,
+                            Some('0') => 0,
+                            Some('\\') => 92,
+                            Some('\'') => 39,
+                            _ => 0,
+                        }
+                    } else {
+                        s.chars().next().map(|c| c as i64).unwrap_or(0)
+                    };
+                    MatchPattern::Integer(ascii)
+                }
+                TokenKind::Identifier(enum_name) => {
+                    // expect ::
+                    if !self.expect_peek(TokenKind::NamespaceAccess) {
+                        return None;
+                    }
+                    self.lexer.next(); // consume ::
+                    let variant_tok = self.lexer.next().unwrap();
+                    match variant_tok.kind {
+                        TokenKind::Identifier(variant_name) => {
+                            MatchPattern::Variant(enum_name, variant_name)
+                        }
+                        _ => {
+                            self.errors.push(AzulaError::new(
+                                ErrorType::ExpectedToken(
+                                    "Identifier".to_string(),
+                                    Some(format!("{:?}", variant_tok.kind)),
+                                ),
+                                variant_tok.span.start,
+                                variant_tok.span.end,
+                            ));
+                            return None;
+                        }
+                    }
+                }
+                _ => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::ExpectedExpression(format!("{:?}", pat_tok.kind)),
+                        pat_tok.span.start,
+                        pat_tok.span.end,
+                    ));
+                    return None;
+                }
+            };
+
+            // expect =>
+            if !self.expect_peek(TokenKind::FatArrow) {
+                return None;
+            }
+            self.lexer.next(); // consume =>
+
+            // parse arm body expression: either a block `{ stmts; final_expr }` or a single expr
+            let body = if self
+                .lexer
+                .peek()
+                .map(|t| t.kind == TokenKind::BraceOpen)
+                .unwrap_or(false)
+            {
+                let open = self.lexer.peek().unwrap().span.start;
+                self.lexer.next(); // consume {
+                self.parse_block_expr(open)?
+            } else {
+                self.parse_expression(LOWEST, false)?
+            };
+
+            arms.push((pattern, body));
+        }
+
+        let close = self.lexer.next().unwrap(); // consume }
+
+        Some(ExpressionNode {
+            expression: Expression::Match(Rc::new(scrutinee), arms),
+            typed: AzulaType::Infer,
             span: Span {
                 start: tok.span.start,
                 end: close.span.end,
@@ -1130,7 +1590,25 @@ impl<'a> Parser<'a> {
                     kind: TokenKind::Identifier(val),
                     span: _,
                 }) => val,
-                _ => todo!("{:?}", tok),
+                Some(tok) => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::ExpectedToken(
+                            "identifier".to_string(),
+                            Some(format!("{:?}", tok.kind)),
+                        ),
+                        tok.span.start,
+                        tok.span.end,
+                    ));
+                    return None;
+                }
+                None => {
+                    self.errors.push(AzulaError::new(
+                        ErrorType::UnexpectedEOF,
+                        self.source.len() - 1,
+                        self.source.len(),
+                    ));
+                    return None;
+                }
             };
 
             if !self.expect_peek(TokenKind::Colon) {
@@ -1256,6 +1734,7 @@ fn operator_precedence(tok: TokenKind, allow_struct_init: bool) -> OperatorPrece
         }
         TokenKind::Plus | TokenKind::Minus => SUM,
         TokenKind::Slash | TokenKind::Asterisk | TokenKind::Power | TokenKind::Modulo => PRODUCT,
+        TokenKind::As => CAST,
         TokenKind::BraceOpen if allow_struct_init => STRUCT_INIT,
         TokenKind::BracketOpen | TokenKind::SquareOpen => CALL,
         TokenKind::Dot | TokenKind::NamespaceAccess => ACCESS,
@@ -2403,5 +2882,48 @@ mod tests {
                 })
             )
         );
+    }
+
+    #[test]
+    fn test_parse_enum() {
+        let input = "enum Color { Red, Green, Blue, }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        if let Statement::Root(body) = parser.parse() {
+            assert!(parser.errors.is_empty());
+            if let Statement::Enum { name, variants, .. } = &body[0] {
+                assert_eq!(*name, "Color");
+                assert_eq!(*variants, vec!["Red", "Green", "Blue"]);
+            } else {
+                panic!("expected Enum statement");
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_match() {
+        let input = "match c { Color::Red => 1, Color::Green => 2, _ => 0, }";
+        let lexer: Lexer = input.into();
+        let mut parser = Parser::new(input, lexer);
+
+        let expr = parser.parse_expression(LOWEST, false).unwrap();
+        assert!(parser.errors.is_empty());
+
+        if let Expression::Match(scrutinee, arms) = expr.expression {
+            assert_eq!(
+                scrutinee.expression,
+                Expression::Identifier("c".to_string())
+            );
+            assert_eq!(arms.len(), 3);
+            assert_eq!(arms[0].0, MatchPattern::Variant("Color", "Red"));
+            assert_eq!(arms[1].0, MatchPattern::Variant("Color", "Green"));
+            assert_eq!(arms[2].0, MatchPattern::Wildcard);
+            assert_eq!(arms[0].1.expression, Expression::Integer(1));
+            assert_eq!(arms[1].1.expression, Expression::Integer(2));
+            assert_eq!(arms[2].1.expression, Expression::Integer(0));
+        } else {
+            panic!("expected Match expression");
+        }
     }
 }

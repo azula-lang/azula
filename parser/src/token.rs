@@ -42,6 +42,7 @@ pub enum TokenKind<'a> {
     GreaterEqual,    // >=
     Modulo,          // %
     NamespaceAccess, // ::
+    FatArrow,        // =>
 
     Function, // func
     Return,   // return
@@ -49,13 +50,24 @@ pub enum TokenKind<'a> {
     Const,    // const
     True,     // true
     False,    // false
-    If,       // If
+    If,       // if
+    Else,     // else
+    Break,    // break
+    Continue, // continue
     Extern,   // extern
     VarArgs,  // varargs
     While,    // while
     Struct,   // struct
     Impl,     // impl
     For,      // for
+    Enum,     // enum
+    Match,    // match
+    As,       // as
+    Alloc,    // alloc
+    Null,     // null
+    Type,     // type
+
+    Import, // import
 
     Comment,
     UnknownToken,

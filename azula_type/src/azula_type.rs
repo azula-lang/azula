@@ -89,6 +89,7 @@ impl<'a> AzulaType<'a> {
         match self {
             AzulaType::Array(..) => true,
             AzulaType::Pointer(..) => true,
+            AzulaType::Str => true,
             _ => false,
         }
     }

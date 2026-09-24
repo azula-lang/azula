@@ -34,11 +34,12 @@ pub enum Instruction<'a> {
     Jump(String),
     Pointer(String, usize),
     CreateArray(AzulaType<'a>, usize, usize),
-    StoreElement(Value, Value, Value),
-    AccessElement(Value, Value, usize),
+    StoreElement(Value, Value, Value, AzulaType<'a>),
+    AccessElement(Value, Value, usize, AzulaType<'a>),
     CreateStruct(String, Vec<Value>, usize),
-    StoreStructMember(Value, usize, Value),
-    AccessStructMember(Value, usize, usize, bool),
+    StoreStructMember(Value, usize, Value, String),
+    AccessStructMember(Value, usize, usize, bool, String),
+    Cast(Value, AzulaType<'a>, usize),
 }
 
 impl<'a> Display for Instruction<'a> {
@@ -95,25 +96,26 @@ impl<'a> Display for Instruction<'a> {
             Instruction::CreateArray(typ, size, dest) => {
                 write!(f, "%{}: create_array {:?} {}", dest, typ, size)
             }
-            Instruction::StoreElement(array, index, val) => {
+            Instruction::StoreElement(array, index, val, _) => {
                 write!(f, "store_element %{:?} {} {}", array, index, val)
             }
-            Instruction::AccessElement(array, index, dest) => {
+            Instruction::AccessElement(array, index, dest, _) => {
                 write!(f, "%{}: access_element %{:?} {}", dest, array, index)
             }
             Instruction::CreateStruct(name, vals, dest) => {
                 write!(f, "%{}: create_struct {} [{:?}]", dest, name, vals)
             }
-            Instruction::StoreStructMember(struc, index, val) => {
+            Instruction::StoreStructMember(struc, index, val, _) => {
                 write!(f, "store_struct_member %{}.{} %{}", struc, index, val)
             }
-            Instruction::AccessStructMember(struc, index, dest, resolve) => {
+            Instruction::AccessStructMember(struc, index, dest, resolve, _) => {
                 write!(
                     f,
                     "%{}: access_struct_member {}.{} {}",
                     dest, struc, index, resolve
                 )
             }
+            Instruction::Cast(val, typ, dest) => write!(f, "%{}: cast {} {:?}", dest, val, typ),
         }
     }
 }

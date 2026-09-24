@@ -27,6 +27,10 @@ pub enum ErrorType {
     AccessNonStruct,
     UnknownStruct(String),
     UnknownStructMember(String, String),
+    UnknownEnum(String),
+    UnknownVariant(String, String),
+    NonExhaustiveMatch(String),
+    MatchOnNonEnum(String),
 }
 
 impl<'a> ErrorType {
@@ -85,6 +89,16 @@ impl<'a> ErrorType {
             }
             ErrorType::UnknownStructMember(struc, member) => {
                 format!("Struct {} attribute {} not found", struc, member)
+            }
+            ErrorType::UnknownEnum(name) => format!("Enum {} not found", name),
+            ErrorType::UnknownVariant(variant, enum_name) => {
+                format!("Enum {} has no variant {}", enum_name, variant)
+            }
+            ErrorType::NonExhaustiveMatch(enum_name) => {
+                format!("Match on {} is not exhaustive", enum_name)
+            }
+            ErrorType::MatchOnNonEnum(typ) => {
+                format!("Cannot match on non-enum type {}", typ)
             }
         }
     }

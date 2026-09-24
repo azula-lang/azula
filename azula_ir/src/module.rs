@@ -12,6 +12,7 @@ pub struct Module<'a> {
     pub strings: Vec<String>,
     pub global_values: HashMap<String, GlobalValue>,
     pub structs: HashMap<&'a str, Struct<'a>>,
+    pub enums: HashMap<String, Vec<String>>,
 }
 
 impl<'a> Module<'a> {
@@ -25,6 +26,134 @@ impl<'a> Module<'a> {
                 returns: AzulaType::Void,
             },
         );
+        extern_functions.insert(
+            "strlen",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "strcmp",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "malloc",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Int],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "memcpy",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Str, AzulaType::Int],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "free",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Void,
+            },
+        );
+        extern_functions.insert(
+            "realloc",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Int],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "ptr_read_int",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "ptr_write_int",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Int],
+                returns: AzulaType::Void,
+            },
+        );
+        extern_functions.insert(
+            "ptr_read_str",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "ptr_write_str",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Str],
+                returns: AzulaType::Void,
+            },
+        );
+        extern_functions.insert(
+            "ptr_add",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Int],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "fopen",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Str],
+                returns: AzulaType::Str,
+            },
+        );
+        extern_functions.insert(
+            "fclose",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "fseek",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Int, AzulaType::Int],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "ftell",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
+        extern_functions.insert(
+            "fread",
+            ExternFunction {
+                varargs: false,
+                arguments: vec![AzulaType::Str, AzulaType::Int, AzulaType::Int, AzulaType::Str],
+                returns: AzulaType::Int,
+            },
+        );
         Module {
             name,
             functions: HashMap::new(),
@@ -32,6 +161,7 @@ impl<'a> Module<'a> {
             strings: vec![],
             global_values: HashMap::new(),
             structs: HashMap::new(),
+            enums: HashMap::new(),
         }
     }
 
@@ -51,6 +181,10 @@ impl<'a> Module<'a> {
 
     pub fn add_struct(&mut self, name: &'a str, struc: Struct<'a>) {
         self.structs.insert(name, struc);
+    }
+
+    pub fn add_enum(&mut self, name: String, variants: Vec<String>) {
+        self.enums.insert(name, variants);
     }
 }
 
@@ -101,6 +235,7 @@ pub struct Function<'a> {
 
     tmp_var_index: usize,
     pub if_block_index: usize,
+    pub match_block_index: usize,
 
     pub current_block: String,
 }
@@ -127,6 +262,7 @@ impl<'a> Function<'a> {
             returns: AzulaType::Void,
             tmp_var_index: 0,
             if_block_index: 0,
+            match_block_index: 0,
             current_block: "entry".to_string(),
         }
     }
@@ -319,6 +455,12 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
+    pub fn cast(&mut self, val: Value, typ: AzulaType<'a>) -> Value {
+        self.add_instruction(Instruction::Cast(val, typ, self.tmp_var_index));
+        self.tmp_var_index += 1;
+        Value::Local(self.tmp_var_index - 1)
+    }
+
     pub fn ptr(&mut self, val: String) -> Value {
         self.add_instruction(Instruction::Pointer(val, self.tmp_var_index));
 
@@ -355,12 +497,12 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
-    pub fn store_element(&mut self, array: Value, index: Value, value: Value) {
-        self.add_instruction(Instruction::StoreElement(array, index, value));
+    pub fn store_element(&mut self, array: Value, index: Value, value: Value, elem_type: AzulaType<'a>) {
+        self.add_instruction(Instruction::StoreElement(array, index, value, elem_type));
     }
 
-    pub fn access_element(&mut self, array: Value, index: Value) -> Value {
-        self.add_instruction(Instruction::AccessElement(array, index, self.tmp_var_index));
+    pub fn access_element(&mut self, array: Value, index: Value, elem_type: AzulaType<'a>) -> Value {
+        self.add_instruction(Instruction::AccessElement(array, index, self.tmp_var_index, elem_type));
         self.tmp_var_index += 1;
 
         Value::Local(self.tmp_var_index - 1)
@@ -373,20 +515,21 @@ impl<'a> Function<'a> {
         Value::Local(self.tmp_var_index - 1)
     }
 
-    pub fn access_struct_member(&mut self, struc: Value, index: usize, resolve: bool) -> Value {
+    pub fn access_struct_member(&mut self, struc: Value, index: usize, resolve: bool, struct_name: String) -> Value {
         self.add_instruction(Instruction::AccessStructMember(
             struc,
             index,
             self.tmp_var_index,
             resolve,
+            struct_name,
         ));
         self.tmp_var_index += 1;
 
         Value::Local(self.tmp_var_index - 1)
     }
 
-    pub fn store_struct_member(&mut self, struc: Value, index: usize, value: Value) {
-        self.add_instruction(Instruction::StoreStructMember(struc, index, value));
+    pub fn store_struct_member(&mut self, struc: Value, index: usize, value: Value, struct_name: String) {
+        self.add_instruction(Instruction::StoreStructMember(struc, index, value, struct_name));
     }
 
     fn add_instruction(&mut self, instruction: Instruction<'a>) {
@@ -400,7 +543,7 @@ impl<'a> Function<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Block<'a> {
     pub instructions: Vec<Instruction<'a>>,
 }
