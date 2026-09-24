@@ -1,0 +1,106 @@
+struct StrMap {
+    key_chars:  IntVec,
+    key_starts: IntVec,
+    key_lens:   IntVec,
+    values:     IntVec,
+    occupied:   IntVec,
+    cap:        int,
+    count:      int,
+}
+
+func strmap_hash(s: str, len: int): int {
+    var h: int = 5381;
+    var i: int = 0;
+    while i < len {
+        var c: int = s[i];
+        h = h * 31 + c;
+        i = i + 1;
+    }
+    if h < 0 { h = 0 - h; }
+    return h;
+}
+
+func strmap_keys_eq(map: &StrMap, slot: int, key: str, klen: int): bool {
+    if map.key_lens.get(slot) != klen { return false; }
+    var start: int = map.key_starts.get(slot);
+    var i: int = 0;
+    while i < klen {
+        var kc: int = key[i];
+        if map.key_chars.get(start + i) != kc { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+impl StrMap {
+    func new(): &StrMap {
+        var cap: int = 256;
+        var m: &StrMap = alloc(StrMap {
+            key_chars:  IntVec::new(),
+            key_starts: IntVec::new(),
+            key_lens:   IntVec::new(),
+            values:     IntVec::new(),
+            occupied:   IntVec::new(),
+            cap:        cap,
+            count:      0,
+        });
+        var i: int = 0;
+        while i < cap {
+            m.key_starts.push(0);
+            m.key_lens.push(0);
+            m.values.push(0);
+            m.occupied.push(0);
+            i = i + 1;
+        }
+        return m;
+    }
+
+    func insert(self: &StrMap, key: str, val: int) {
+        var klen: int = strlen(key);
+        var h: int = strmap_hash(key, klen);
+        var slot: int = h % self.cap;
+        while self.occupied.get(slot) == 1 {
+            if strmap_keys_eq(self, slot, key, klen) {
+                self.values.set(slot, val);
+                return;
+            }
+            slot = (slot + 1) % self.cap;
+        }
+        var kstart: int = self.key_chars.length();
+        var i: int = 0;
+        while i < klen {
+            var kc: int = key[i];
+            self.key_chars.push(kc);
+            i = i + 1;
+        }
+        self.key_starts.set(slot, kstart);
+        self.key_lens.set(slot, klen);
+        self.values.set(slot, val);
+        self.occupied.set(slot, 1);
+        self.count = self.count + 1;
+    }
+
+    func get(self: &StrMap, key: str): int {
+        var klen: int = strlen(key);
+        var h: int = strmap_hash(key, klen);
+        var slot: int = h % self.cap;
+        var checked: int = 0;
+        while checked < self.cap {
+            if self.occupied.get(slot) == 0 { return -1; }
+            if strmap_keys_eq(self, slot, key, klen) {
+                return self.values.get(slot);
+            }
+            slot = (slot + 1) % self.cap;
+            checked = checked + 1;
+        }
+        return -1;
+    }
+
+    func contains(self: &StrMap, key: str): bool {
+        return self.get(key) != -1;
+    }
+
+    func length(self: &StrMap): int {
+        return self.count;
+    }
+}
